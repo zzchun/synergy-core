@@ -22,29 +22,29 @@
 #include <QtGui>
 
 AboutDialog::AboutDialog(QWidget* parent, const QString& synergyApp) :
-	QDialog(parent, Qt::WindowTitleHint | Qt::WindowSystemMenuHint),
-	Ui::AboutDialogBase()
+    QDialog(parent, Qt::WindowTitleHint | Qt::WindowSystemMenuHint),
+    Ui::AboutDialogBase()
 {
-	setupUi(this);
+    setupUi(this);
 
-	m_versionChecker.setApp(synergyApp);
-	QString version = m_versionChecker.getVersion();
-	m_pLabelSynergyVersion->setText(version);
+    m_versionChecker.setApp(synergyApp);
+    QString version = m_versionChecker.getVersion();
+    m_pLabelSynergyVersion->setText(version);
 
-	QString buildDateString = QString::fromLocal8Bit(__DATE__).simplified();
-	QDate buildDate = QLocale("en_US").toDate(buildDateString, "MMM d yyyy");
-	m_pLabelBuildDate->setText(buildDate.toString(Qt::SystemLocaleLongDate));
+    QString buildDateString = QString::fromLocal8Bit(__DATE__).simplified();
+    QDate buildDate = QLocale("en_US").toDate(buildDateString, "MMM d yyyy");
+    m_pLabelBuildDate->setText(buildDate.toString(Qt::SystemLocaleLongDate));
 
-	// change default size based on os
+    // change default size based on os
 #if defined(Q_OS_MAC)
-	QSize size(600, 380);
-	setMaximumSize(size);
-	setMinimumSize(size);
-	resize(size);
+    QSize size(600, 380);
+    setMaximumSize(size);
+    setMinimumSize(size);
+    resize(size);
 #elif defined(Q_OS_LINUX)
-	QSize size(600, 330);
-	setMaximumSize(size);
-	setMinimumSize(size);
-	resize(size);
+    QSize size(600, 330);
+    setMaximumSize(size);
+    setMinimumSize(size);
+    resize(size);
 #endif
 }
