@@ -17,14 +17,11 @@ add_executable (synergyx
 
 include_directories (../lib/shared ./src)
 
+qt5_use_modules (synergyx Widgets Network)
+
 if (WIN32)
-    include_directories ($ENV{BONJOUR_SDK_HOME}/Include)
-    find_library (DNSSD_LIB dnssd.lib 
-                  HINTS ENV BONJOUR_SDK_HOME
-                  PATH_SUFFIXES "Lib/x64")
+set_target_properties (synergyx PROPERTIES
+                        LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
 endif()
 
-qt5_use_modules (synergyx Widgets Network)
-target_link_libraries (synergyx ${DNSSD_LIB} shared)
-set_target_properties (synergyx PROPERTIES 
-                                LINK_FLAGS "/NODEFAULTLIB:LIBCMT")
+target_link_libraries (synergyx shared)
