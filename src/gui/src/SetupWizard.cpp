@@ -128,7 +128,6 @@ void SetupWizard::accept()
 
     if (m_StartMain)
     {
-        m_MainWindow.updateZeroconfService();
         m_MainWindow.open();
     }
 }

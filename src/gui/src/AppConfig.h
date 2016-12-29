@@ -75,10 +75,6 @@ class AppConfig: public QObject
         bool wizardShouldRun() const;
         const QString& language() const;
         bool startedBefore() const;
-        bool autoConfig() const;
-        void setAutoConfig(bool autoConfig);
-        bool autoConfigPrompted();
-        void setAutoConfigPrompted(bool prompted);
         void setEdition(Edition);
         Edition edition() const;
         QString setSerialKey(QString serial);
@@ -136,9 +132,7 @@ protected:
         ProcessMode m_ProcessMode;
         QString m_Language;
         bool m_StartedBefore;
-        bool m_AutoConfig;
         ElevateMode m_ElevateMode;
-        bool m_AutoConfigPrompted;
         Edition m_Edition;
         QString m_ActivateEmail;
         bool m_CryptoEnabled;

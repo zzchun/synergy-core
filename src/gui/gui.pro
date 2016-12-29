@@ -19,7 +19,6 @@ FORMS += src/MainWindowBase.ui \
     src/HotkeyDialogBase.ui \
     src/SettingsDialogBase.ui \
     src/SetupWizardBase.ui \
-    src/AddClientDialogBase.ui \
     src/ActivationDialog.ui \
     src/CancelActivationDialog.ui \
     src/FailedLoginDialog.ui
@@ -51,13 +50,7 @@ SOURCES += src/main.cpp \
     src/Ipc.cpp \
     src/SynergyLocale.cpp \
     src/QUtility.cpp \
-    src/ZeroconfServer.cpp \
-    src/ZeroconfThread.cpp \
-    src/ZeroconfRegister.cpp \
-    src/ZeroconfBrowser.cpp \
-    src/ZeroconfService.cpp \
     src/DataDownloader.cpp \
-    src/AddClientDialog.cpp \
     src/CommandProcess.cpp \
     src/CoreInterface.cpp \
     src/Fingerprint.cpp \
@@ -96,14 +89,7 @@ HEADERS += src/MainWindow.h \
     src/Ipc.h \
     src/SynergyLocale.h \
     src/QUtility.h \
-    src/ZeroconfServer.h \
-    src/ZeroconfThread.h \
-    src/ZeroconfRegister.h \
-    src/ZeroconfRecord.h \
-    src/ZeroconfBrowser.h \
-    src/ZeroconfService.h \
     src/DataDownloader.h \
-    src/AddClientDialog.h \
     src/CommandProcess.h \
     src/ProcessorArch.h \
     src/CoreInterface.h \
@@ -128,7 +114,7 @@ macx {
     QMAKE_BUNDLE_DATA += QSYNERGY_ICON
     LIBS += $$MACX_LIBS
 }
-unix:!macx:LIBS += -ldns_sd
+
 debug { 
     OBJECTS_DIR = tmp/debug
     MOC_DIR = tmp/debug
@@ -146,17 +132,14 @@ win32-msvc2015 {
 win32-msvc* {
     contains(QMAKE_HOST.arch, x86):{
         QMAKE_LFLAGS *= /MACHINE:X86
-        LIBS += -L"$$(BONJOUR_SDK_HOME)/Lib/Win32" -ldnssd
     }
 
     contains(QMAKE_HOST.arch, x86_64):{
         QMAKE_LFLAGS *= /MACHINE:X64
-        LIBS += -L"$$(BONJOUR_SDK_HOME)/Lib/x64" -ldnssd
     }
 }
 win32 { 
     Debug:DESTDIR = ../../bin/Debug
     Release:DESTDIR = ../../bin/Release
-    INCLUDEPATH += "$$(BONJOUR_SDK_HOME)/Include"
 }
 else:DESTDIR = ../../bin

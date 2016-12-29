@@ -54,8 +54,6 @@ ServerConfigDialog::ServerConfigDialog(QWidget* parent, ServerConfig& config, co
     m_pCheckBoxCornerBottomRight->setChecked(serverConfig().switchCorner(BaseConfig::BottomRight));
     m_pSpinBoxSwitchCornerSize->setValue(serverConfig().switchCornerSize());
 
-    m_pCheckBoxIgnoreAutoConfigClient->setChecked(serverConfig().ignoreAutoConfigClient());
-
     m_pCheckBoxEnableDragAndDrop->setChecked(serverConfig().enableDragAndDrop());
 
     m_pCheckBoxEnableClipboard->setChecked(serverConfig().clipboardSharing());
@@ -100,7 +98,6 @@ void ServerConfigDialog::accept()
     serverConfig().setSwitchCorner(BaseConfig::BottomLeft, m_pCheckBoxCornerBottomLeft->isChecked());
     serverConfig().setSwitchCorner(BaseConfig::BottomRight, m_pCheckBoxCornerBottomRight->isChecked());
     serverConfig().setSwitchCornerSize(m_pSpinBoxSwitchCornerSize->value());
-    serverConfig().setIgnoreAutoConfigClient(m_pCheckBoxIgnoreAutoConfigClient->isChecked());
     serverConfig().setEnableDragAndDrop(m_pCheckBoxEnableDragAndDrop->isChecked());
     serverConfig().setClipboardSharing(m_pCheckBoxEnableClipboard->isChecked());
 
