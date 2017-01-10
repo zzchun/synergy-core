@@ -126,6 +126,7 @@ private:
 	static void			remapKeyModifiers(KeyID, SInt32,
 							synergy::KeyMap::KeyItem&, void*);
 
+    void initUInput();
 private:
 	struct XKBModifierInfo {
 	public:
@@ -164,6 +165,8 @@ private:
 
 	// autorepeat state
 	XKeyboardState		m_keyboardState;
+
+    int                 m_uinputDevice;
 
 #ifdef TEST_ENV
 public:

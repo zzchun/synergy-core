@@ -38,6 +38,15 @@
 #endif
 #endif
 
+#include <cstring>
+#include <cerrno>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <linux/uinput.h>
+
 static const size_t ModifiersFromXDefaultSize = 32;
 
 XWindowsKeyState::XWindowsKeyState(
@@ -45,9 +54,11 @@ XWindowsKeyState::XWindowsKeyState(
 		IEventQueue* events) :
 	KeyState(events),
 	m_display(display),
-	m_modifierFromX(ModifiersFromXDefaultSize)
+	m_modifierFromX(ModifiersFromXDefaultSize),
+    m_uinputDevice(-1)
 {
 	init(display, useXKB);
+    initUInput();
 }
 
 XWindowsKeyState::XWindowsKeyState(
@@ -55,9 +66,11 @@ XWindowsKeyState::XWindowsKeyState(
 	IEventQueue* events, synergy::KeyMap& keyMap) :
 	KeyState(events, keyMap),
 	m_display(display),
-	m_modifierFromX(ModifiersFromXDefaultSize)
+	m_modifierFromX(ModifiersFromXDefaultSize),
+    m_uinputDevice(-1)
 {
 	init(display, useXKB);
+    initUInput();
 }
 
 XWindowsKeyState::~XWindowsKeyState()
@@ -238,9 +251,25 @@ XWindowsKeyState::getKeyMap(synergy::KeyMap& keyMap)
 	updateKeysymMap(keyMap);
 }
 
+
+template <typename T> static inline
+int
+doIoctl (int const fd, unsigned long int const request, T const& arg, 
+         char const* const requestString) {
+    int ret = ::ioctl (fd, request, arg);
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "ioctl failed on fd %i, request: %s, error: %s", fd, 
+              requestString, ::strerror(errno)));
+    }
+    return ret;
+}
+
+#define DO_IOCTL(FD, REQ, ARG) doIoctl (FD, REQ, ARG, #REQ)
+
 void
 XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 {
+    ssize_t wok = -1;
 	switch (keystroke.m_type) {
 	case Keystroke::kButton:
 		LOG((CLOG_DEBUG1 "  %03x (%08x) %s", keystroke.m_data.m_button.m_button, keystroke.m_data.m_button.m_client, keystroke.m_data.m_button.m_press ? "down" : "up"));
@@ -254,9 +283,21 @@ XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 				break;
 			}
 		}
-		XTestFakeKeyEvent(m_display, keystroke.m_data.m_button.m_button,
-							keystroke.m_data.m_button.m_press ? True : False,
-							CurrentTime);
+        
+        struct input_event ev;
+        std::memset (&ev, 0, sizeof(ev));
+        ev.type = EV_KEY;
+        ev.code = KEY_D;
+        ev.value = keystroke.m_data.m_button.m_press ? 1 : 0;
+        
+        wok = ::write (m_uinputDevice, &ev, sizeof(ev));
+        if (wok < 0) {
+            LOG((CLOG_DEBUG2 " failed to write key to uinput device"));
+        }
+
+		//XTestFakeKeyEvent(m_display, keystroke.m_data.m_button.m_button,
+		//					keystroke.m_data.m_button.m_press ? True : False,
+		//					CurrentTime);
 		break;
 
 	case Keystroke::kGroup:
@@ -789,79 +830,120 @@ XWindowsKeyState::remapKeyModifiers(KeyID id, SInt32 group,
 	item.m_required  =
 		self->mapModifiersFromX(XkbBuildCoreState(item.m_required, group));
 	item.m_sensitive =
-		self->mapModifiersFromX(XkbBuildCoreState(item.m_sensitive, group));
+            self->mapModifiersFromX(XkbBuildCoreState(item.m_sensitive, group));
+}
+
+void XWindowsKeyState::initUInput()
+{
+    if (m_uinputDevice >= 0) {
+        return;
+    }
+    
+    static char const* const uinputDevPath = "/dev/uinput";
+    m_uinputDevice = ::open (uinputDevPath, O_WRONLY | O_NONBLOCK);
+    if (m_uinputDevice < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to open: %s, error: %i", uinputDevPath, 
+              errno));
+        return;
+    }
+    
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
+    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, KEY_D);
+    
+    struct uinput_user_dev uidev;
+    std::memset (&uidev, 0, sizeof(uidev));
+    ::strncpy (uidev.name, "synergy", UINPUT_MAX_NAME_SIZE);
+    uidev.id.bustype = BUS_USB;
+    uidev.id.product = 0x1337;
+    uidev.id.vendor = 0x60E0;
+    uidev.id.version = 2;
+    
+    ssize_t ret = ::write (m_uinputDevice, &uidev, sizeof(uidev));
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to write new uinput device, error: %s",
+              ::strerror(errno)));
+        return;
+    }
+    
+    ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to create new uinput device, error: %s",
+              ::strerror(errno)));
+        return;
+    }
 }
 
 bool
 XWindowsKeyState::hasModifiersXKB() const
 {
 #if HAVE_XKB_EXTENSION
-	// iterate over all keycodes
-	for (int i = m_xkb->min_key_code; i <= m_xkb->max_key_code; ++i) {
-		KeyCode keycode = static_cast<KeyCode>(i);
-		if (XkbKeyHasActions(m_xkb, keycode) == True) {
-			// iterate over all groups
-			int numGroups = XkbKeyNumGroups(m_xkb, keycode);
-			for (int group = 0; group < numGroups; ++group) {
-				// iterate over all shift levels for the button (including none)
-				XkbKeyTypePtr type = XkbKeyKeyType(m_xkb, keycode, group);
-				for (int j = -1; j < type->map_count; ++j) {
-					if (j != -1 && !type->map[j].active) {
-						continue;
-					}
-					int level = ((j == -1) ? 0 : type->map[j].level);
-					XkbAction* action =
-						XkbKeyActionEntry(m_xkb, keycode, level, group);
-					if (action->type == XkbSA_SetMods ||
-						action->type == XkbSA_LockMods) {
-						return true;
-					}
-				}
-			}
-		}
-	}
+    // iterate over all keycodes
+    for (int i = m_xkb->min_key_code; i <= m_xkb->max_key_code; ++i) {
+        KeyCode keycode = static_cast<KeyCode>(i);
+        if (XkbKeyHasActions(m_xkb, keycode) == True) {
+            // iterate over all groups
+            int numGroups = XkbKeyNumGroups(m_xkb, keycode);
+            for (int group = 0; group < numGroups; ++group) {
+                // iterate over all shift levels for the button (including none)
+                XkbKeyTypePtr type = XkbKeyKeyType(m_xkb, keycode, group);
+                for (int j = -1; j < type->map_count; ++j) {
+                    if (j != -1 && !type->map[j].active) {
+                        continue;
+                    }
+                    int level = ((j == -1) ? 0 : type->map[j].level);
+                    XkbAction* action =
+                        XkbKeyActionEntry(m_xkb, keycode, level, group);
+                    if (action->type == XkbSA_SetMods ||
+                        action->type == XkbSA_LockMods) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
 #endif
-	return false;
+    return false;
 }
 
 int
 XWindowsKeyState::getEffectiveGroup(KeyCode keycode, int group) const
 {
-	(void)keycode;
+    (void)keycode;
 #if HAVE_XKB_EXTENSION
-	// get effective group for key
-	int numGroups = XkbKeyNumGroups(m_xkb, keycode);
-	if (group >= numGroups) {
-		unsigned char groupInfo = XkbKeyGroupInfo(m_xkb, keycode);
-		switch (XkbOutOfRangeGroupAction(groupInfo)) {
-		case XkbClampIntoRange:
-			group = numGroups - 1;
-			break;
+    // get effective group for key
+    int numGroups = XkbKeyNumGroups(m_xkb, keycode);
+    if (group >= numGroups) {
+        unsigned char groupInfo = XkbKeyGroupInfo(m_xkb, keycode);
+        switch (XkbOutOfRangeGroupAction(groupInfo)) {
+        case XkbClampIntoRange:
+            group = numGroups - 1;
+            break;
 
-		case XkbRedirectIntoRange:
-			group = XkbOutOfRangeGroupNumber(groupInfo);
-			if (group >= numGroups) {
-				group = 0;
-			}
-			break;
+        case XkbRedirectIntoRange:
+            group = XkbOutOfRangeGroupNumber(groupInfo);
+            if (group >= numGroups) {
+                group = 0;
+            }
+            break;
 
-		default:
-			// wrap
-			group %= numGroups;
-			break;
-		}
-	}
+        default:
+            // wrap
+            group %= numGroups;
+            break;
+        }
+    }
 #endif
-	return group;
+    return group;
 }
 
 UInt32
 XWindowsKeyState::getGroupFromState(unsigned int state) const
 {
 #if HAVE_XKB_EXTENSION
-	if (m_xkb != NULL) {
-		return XkbGroupForCoreState(state);
-	}
+    if (m_xkb != NULL) {
+        return XkbGroupForCoreState(state);
+    }
 #endif
-	return 0;
+    return 0;
 }
