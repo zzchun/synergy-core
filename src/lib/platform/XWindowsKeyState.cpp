@@ -42,7 +42,6 @@
 #include <cerrno>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <unistd.h>
 #include <linux/input.h>
 #include <linux/uinput.h>
@@ -251,20 +250,6 @@ XWindowsKeyState::getKeyMap(synergy::KeyMap& keyMap)
 	updateKeysymMap(keyMap);
 }
 
-
-template <typename T> static inline
-int
-doIoctl (int const fd, unsigned long int const request, T const& arg, 
-         char const* const requestString) {
-    int ret = ::ioctl (fd, request, arg);
-    if (ret < 0) {
-        LOG ((CLOG_DEBUG2 "ioctl failed on fd %i, request: %s, error: %s", fd, 
-              requestString, ::strerror(errno)));
-    }
-    return ret;
-}
-
-#define DO_IOCTL(FD, REQ, ARG) doIoctl (FD, REQ, ARG, #REQ)
 
 void
 XWindowsKeyState::fakeKey(const Keystroke& keystroke)
