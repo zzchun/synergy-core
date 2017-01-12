@@ -50,9 +50,9 @@ public:
 		kGroupPollAndSet = -2
 	};
 
-	XWindowsKeyState(Display*, bool useXKB, IEventQueue* events);
+    XWindowsKeyState(Display*, bool useXKB, IEventQueue* events, int uinputDevice = -1);
 	XWindowsKeyState(Display*, bool useXKB,
-		IEventQueue* events, synergy::KeyMap& keyMap);
+        IEventQueue* events, synergy::KeyMap& keyMap, int uinputDevice = -1);
 	~XWindowsKeyState();
 
 	//! @name modifiers
@@ -125,8 +125,6 @@ private:
 
 	static void			remapKeyModifiers(KeyID, SInt32,
 							synergy::KeyMap::KeyItem&, void*);
-
-    void initUInput();
 private:
 	struct XKBModifierInfo {
 	public:

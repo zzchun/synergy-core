@@ -114,6 +114,8 @@ private:
 	void				onError();
 	static int			ioErrorHandler(Display*);
 
+    void                initUInput();
+
 private:
 	class KeyEventFilter {
 	public:
@@ -245,6 +247,8 @@ private:
 
 	IEventQueue*		m_events;
 	synergy::KeyMap				m_keyMap;
+
+    int                 m_uinputDevice;
 
 	// pointer to (singleton) screen.  this is only needed by
 	// ioErrorHandler().

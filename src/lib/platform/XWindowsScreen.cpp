@@ -34,9 +34,16 @@
 #include "base/IEventQueue.h"
 #include "base/TMethodEventJob.h"
 
-#include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <cstring>
+#include <cerrno>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <linux/uinput.h>
+
 #if X_DISPLAY_MISSING
 #	error X11 is required to build synergy
 #else
@@ -122,6 +129,7 @@ XWindowsScreen::XWindowsScreen(
 	m_xi2detected(false),
 	m_xrandr(false),
 	m_events(events),
+    m_uinputDevice(-1),
 	PlatformScreen(events)
 {
 	assert(s_screen == NULL);
@@ -147,7 +155,8 @@ XWindowsScreen::XWindowsScreen(
 		m_window      = openWindow();
 		m_screensaver = new XWindowsScreenSaver(m_display,
 								m_window, getEventTarget(), events);
-		m_keyState    = new XWindowsKeyState(m_display, m_xkb, events, m_keyMap);
+        initUInput();
+        m_keyState    = new XWindowsKeyState(m_display, m_xkb, events, m_keyMap, m_uinputDevice);
 		LOG((CLOG_DEBUG "screen shape: %d,%d %dx%d %s", m_x, m_y, m_w, m_h, m_xinerama ? "(xinerama)" : ""));
 		LOG((CLOG_DEBUG "window is 0x%08x", m_window));
 	}
@@ -1768,8 +1777,50 @@ XWindowsScreen::ioErrorHandler(Display*)
 	// don't access the display anymore.
 	LOG((CLOG_CRIT "X display has unexpectedly disconnected"));
 	s_screen->onError();
-	return 0;
+    return 0;
 }
+
+void XWindowsScreen::initUInput()
+{
+    if (m_uinputDevice >= 0) {
+        return;
+    }
+
+    static char const* const uinputDevPath = "/dev/uinput";
+    m_uinputDevice = ::open (uinputDevPath, O_WRONLY | O_NONBLOCK);
+    if (m_uinputDevice < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to open: %s, error: %i", uinputDevPath,
+              errno));
+        return;
+    }
+
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
+    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, KEY_D);
+
+    struct uinput_user_dev uidev;
+    std::memset (&uidev, 0, sizeof(uidev));
+    ::strncpy (uidev.name, "synergy", UINPUT_MAX_NAME_SIZE);
+    uidev.id.bustype = BUS_USB;
+    uidev.id.product = 0x1337;
+    uidev.id.vendor = 0x60E0;
+    uidev.id.version = 2;
+
+    ssize_t ret = ::write (m_uinputDevice, &uidev, sizeof(uidev));
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to write new uinput device, error: %s",
+              ::strerror(errno)));
+        return;
+    }
+
+    ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to create new uinput device, error: %s",
+              ::strerror(errno)));
+        return;
+    }
+}
+
 
 void
 XWindowsScreen::selectEvents(Window w) const

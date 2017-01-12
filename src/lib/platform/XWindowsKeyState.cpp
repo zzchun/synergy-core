@@ -50,26 +50,26 @@ static const size_t ModifiersFromXDefaultSize = 32;
 
 XWindowsKeyState::XWindowsKeyState(
 		Display* display, bool useXKB,
-		IEventQueue* events) :
+        IEventQueue* events,
+        int uinputDevice) :
 	KeyState(events),
 	m_display(display),
-	m_modifierFromX(ModifiersFromXDefaultSize),
-    m_uinputDevice(-1)
+    m_modifierFromX(ModifiersFromXDefaultSize),
+    m_uinputDevice(uinputDevice)
 {
 	init(display, useXKB);
-    initUInput();
 }
 
 XWindowsKeyState::XWindowsKeyState(
 	Display* display, bool useXKB,
-	IEventQueue* events, synergy::KeyMap& keyMap) :
+    IEventQueue* events, synergy::KeyMap& keyMap,
+    int uinputDevice) :
 	KeyState(events, keyMap),
 	m_display(display),
 	m_modifierFromX(ModifiersFromXDefaultSize),
-    m_uinputDevice(-1)
+    m_uinputDevice(uinputDevice)
 {
 	init(display, useXKB);
-    initUInput();
 }
 
 XWindowsKeyState::~XWindowsKeyState()
@@ -816,47 +816,6 @@ XWindowsKeyState::remapKeyModifiers(KeyID id, SInt32 group,
 		self->mapModifiersFromX(XkbBuildCoreState(item.m_required, group));
 	item.m_sensitive =
             self->mapModifiersFromX(XkbBuildCoreState(item.m_sensitive, group));
-}
-
-void XWindowsKeyState::initUInput()
-{
-    if (m_uinputDevice >= 0) {
-        return;
-    }
-    
-    static char const* const uinputDevPath = "/dev/uinput";
-    m_uinputDevice = ::open (uinputDevPath, O_WRONLY | O_NONBLOCK);
-    if (m_uinputDevice < 0) {
-        LOG ((CLOG_DEBUG2 "Failed to open: %s, error: %i", uinputDevPath, 
-              errno));
-        return;
-    }
-    
-    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
-    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
-    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, KEY_D);
-    
-    struct uinput_user_dev uidev;
-    std::memset (&uidev, 0, sizeof(uidev));
-    ::strncpy (uidev.name, "synergy", UINPUT_MAX_NAME_SIZE);
-    uidev.id.bustype = BUS_USB;
-    uidev.id.product = 0x1337;
-    uidev.id.vendor = 0x60E0;
-    uidev.id.version = 2;
-    
-    ssize_t ret = ::write (m_uinputDevice, &uidev, sizeof(uidev));
-    if (ret < 0) {
-        LOG ((CLOG_DEBUG2 "Failed to write new uinput device, error: %s",
-              ::strerror(errno)));
-        return;
-    }
-    
-    ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
-    if (ret < 0) {
-        LOG ((CLOG_DEBUG2 "Failed to create new uinput device, error: %s",
-              ::strerror(errno)));
-        return;
-    }
 }
 
 bool
