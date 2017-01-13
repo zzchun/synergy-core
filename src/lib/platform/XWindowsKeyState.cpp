@@ -269,25 +269,20 @@ XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 			}
 		}
         
-        struct input_event ev;
+        struct input_event ev[2];
         std::memset(&ev, 0, sizeof(ev));
-        ev.type = EV_KEY;
-        ev.code = KEY_D;
-        ev.value = keystroke.m_data.m_button.m_press ? 1 : 0;
-        
+        ev[0].type = EV_KEY;
+        ev[0].code = getUSBCodeFromKeyButton(keystroke.m_data.m_button.m_button);
+        ev[0].value = keystroke.m_data.m_button.m_press ? 1 : 0;
+
+        ev[1].type = EV_SYN;
+
         wok = ::write(m_uinputDevice, &ev, sizeof(ev));
+
         if (wok < 0) {
             LOG((CLOG_DEBUG2 " failed to write key to uinput device"));
         }
 
-		struct input_event flush;
-		std::memset(&flush, 0, sizeof(flush));
-		ev.type = EV_SYN;
-
-		wok = ::write(m_uinputDevice, &flush, sizeof(flush));
-		if (wok < 0) {
-			LOG((CLOG_DEBUG2 " failed to write sync to uinput device"));
-		}
 		//XTestFakeKeyEvent(m_display, keystroke.m_data.m_button.m_button,
 		//					keystroke.m_data.m_button.m_press ? True : False,
 		//					CurrentTime);
@@ -898,4 +893,9 @@ XWindowsKeyState::getGroupFromState(unsigned int state) const
     }
 #endif
     return 0;
+}
+
+unsigned short XWindowsKeyState::getUSBCodeFromKeyButton(KeyButton button)
+{
+	return button - 8;
 }

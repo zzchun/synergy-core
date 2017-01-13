@@ -1796,7 +1796,9 @@ void XWindowsScreen::initUInput()
 
     DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
     DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
-    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, KEY_D);
+    for (int i = 1; i <= 248; i++) {
+    	DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
+    }
 
     struct uinput_user_dev uidev;
     std::memset (&uidev, 0, sizeof(uidev));
