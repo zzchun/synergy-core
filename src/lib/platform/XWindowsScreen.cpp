@@ -188,7 +188,7 @@ XWindowsScreen::XWindowsScreen(
 	}
 	else {
 		// become impervious to server grabs
-		XTestGrabControl(m_display, True);
+        //XTestGrabControl(m_display, True);
 	}
 
 	// initialize the clipboards
@@ -239,98 +239,16 @@ XWindowsScreen::~XWindowsScreen()
 void
 XWindowsScreen::enable()
 {
-	if (!m_isPrimary) {
-		// get the keyboard control state
-		XKeyboardState keyControl;
-		XGetKeyboardControl(m_display, &keyControl);
-		m_autoRepeat = (keyControl.global_auto_repeat == AutoRepeatModeOn);
-		m_keyState->setAutoRepeat(keyControl);
-
-		// move hider window under the cursor center
-		XMoveWindow(m_display, m_window, m_xCenter, m_yCenter);
-
-		// raise and show the window
-		// FIXME -- take focus?
-		XMapRaised(m_display, m_window);
-
-		// warp the mouse to the cursor center
-		fakeMouseMove(m_xCenter, m_yCenter);
-	}
 }
 
 void
 XWindowsScreen::disable()
 {
-	// release input context focus
-	if (m_ic != NULL) {
-		XUnsetICFocus(m_ic);
-	}
-
-	// unmap the hider/grab window.  this also ungrabs the mouse and
-	// keyboard if they're grabbed.
-	XUnmapWindow(m_display, m_window);
-
-	// restore auto-repeat state
-	if (!m_isPrimary && m_autoRepeat) {
-		//XAutoRepeatOn(m_display);
-	}
 }
 
 void
 XWindowsScreen::enter()
 {
-	screensaver(false);
-
-	// release input context focus
-	if (m_ic != NULL) {
-		XUnsetICFocus(m_ic);
-	}
-
-	// set the input focus to what it had been when we took it
-	if (m_lastFocus != None) {
-		// the window may not exist anymore so ignore errors
-		XWindowsUtil::ErrorLock lock(m_display);
-		XSetInputFocus(m_display, m_lastFocus, m_lastFocusRevert, CurrentTime);
-	}
-
-	#if HAVE_X11_EXTENSIONS_DPMS_H
-	// Force the DPMS to turn screen back on since we don't
-	// actually cause physical hardware input to trigger it
-	int dummy;
-	CARD16 powerlevel;
-	BOOL enabled;
-	if (DPMSQueryExtension(m_display, &dummy, &dummy) &&
-	    DPMSCapable(m_display) &&
-	    DPMSInfo(m_display, &powerlevel, &enabled))
-	{
-		if (enabled && powerlevel != DPMSModeOn)
-			DPMSForceLevel(m_display, DPMSModeOn);
-	}
-	#endif
-	
-	// unmap the hider/grab window.  this also ungrabs the mouse and
-	// keyboard if they're grabbed.
-	XUnmapWindow(m_display, m_window);
-
-/* maybe call this if entering for the screensaver
-	// set keyboard focus to root window.  the screensaver should then
-	// pick up key events for when the user enters a password to unlock. 
-	XSetInputFocus(m_display, PointerRoot, PointerRoot, CurrentTime);
-*/
-
-	if (!m_isPrimary) {
-		// get the keyboard control state
-		XKeyboardState keyControl;
-		XGetKeyboardControl(m_display, &keyControl);
-		m_autoRepeat = (keyControl.global_auto_repeat == AutoRepeatModeOn);
-		m_keyState->setAutoRepeat(keyControl);
-
-		// turn off auto-repeat.  we do this so fake key press events don't
-		// cause the local server to generate their own auto-repeats of
-		// those keys.
-		//XAutoRepeatOff(m_display);
-	}
-
 	// now on screen
 	m_isOnScreen = true;
 }
@@ -338,57 +256,8 @@ XWindowsScreen::enter()
 bool
 XWindowsScreen::leave()
 {
-	if (!m_isPrimary) {
-		// restore the previous keyboard auto-repeat state.  if the user
-		// changed the auto-repeat configuration while on the client then
-		// that state is lost.  that's because we can't get notified by
-		// the X server when the auto-repeat configuration is changed so
-		// we can't track the desired configuration.
-		if (m_autoRepeat) {
-			//XAutoRepeatOn(m_display);
-		}
-
-		// move hider window under the cursor center
-		XMoveWindow(m_display, m_window, m_xCenter, m_yCenter);
-	}
-
-	// raise and show the window
-	XMapRaised(m_display, m_window);
-
-	// grab the mouse and keyboard, if primary and possible
-	if (m_isPrimary && !grabMouseAndKeyboard()) {
-		XUnmapWindow(m_display, m_window);
-		return false;
-	}
-
-	// save current focus
-	XGetInputFocus(m_display, &m_lastFocus, &m_lastFocusRevert);
-
-	// take focus
-	if (m_isPrimary || !m_preserveFocus) {
-		XSetInputFocus(m_display, m_window, RevertToPointerRoot, CurrentTime);
-	}
-
-	// now warp the mouse.  we warp after showing the window so we're
-	// guaranteed to get the mouse leave event and to prevent the
-	// keyboard focus from changing under point-to-focus policies.
-	if (m_isPrimary) {
-		warpCursor(m_xCenter, m_yCenter);
-	}
-	else {
-		fakeMouseMove(m_xCenter, m_yCenter);
-	}
-
-	// set input context focus to our window
-	if (m_ic != NULL) {
-		XmbResetIC(m_ic);
-		XSetICFocus(m_ic);
-		m_filtered.clear();
-	}
-
-	// now off screen
+    // now off screen
 	m_isOnScreen = false;
-
 	return true;
 }
 
@@ -716,12 +585,12 @@ XWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
 
 			for (XWindowsKeyState::KeycodeList::iterator j = keycodes.begin();
 									j != keycodes.end() && !err; ++j) {
-				for (size_t i = 0; i < (1u << numToggleModifiers); ++i) {
+                for (size_t i = 0; i < (1u << numToggleModifiers); ++i) {
 					// add toggle modifiers for index i
 					unsigned int tmpModifiers = modifiers;
 					if ((i & 1) != 0) {
 						tmpModifiers |= toggleModifiers[0];
-					}
+                    }
 					if ((i & 2) != 0) {
 						tmpModifiers |= toggleModifiers[1];
 					}
@@ -846,27 +715,32 @@ XWindowsScreen::fakeMouseButton(ButtonID button, bool press)
 void
 XWindowsScreen::fakeMouseMove(SInt32 x, SInt32 y)
 {
-	if (m_xinerama && m_xtestIsXineramaUnaware) {
-		XWarpPointer(m_display, None, m_root, 0, 0, 0, 0, x, y);
-	}
-	else {
-		XTestFakeMotionEvent(m_display, DefaultScreen(m_display),
-							x, y, CurrentTime);
-	}
-	XFlush(m_display);
+    LOG ((CLOG_DEBUG2 "Ignoring absolute mouse position"));
 }
 
 void
 XWindowsScreen::fakeMouseRelativeMove(SInt32 dx, SInt32 dy) const
 {
-	// FIXME -- ignore xinerama for now
-	if (false && m_xinerama && m_xtestIsXineramaUnaware) {
-//		XWarpPointer(m_display, None, m_root, 0, 0, 0, 0, x, y);
-	}
-	else {
-		XTestFakeRelativeMotionEvent(m_display, dx, dy, CurrentTime);
-	}
-	XFlush(m_display);
+    struct input_event ev[3];
+    std::memset (ev, 0, sizeof(ev));
+
+    ev[0].type = EV_REL;
+    ev[0].code = REL_X;
+    ev[0].value = dx;
+
+    ev[1].type = EV_REL;
+    ev[1].code = REL_Y;
+    ev[1].value = dy;
+
+    ev[2].type = EV_SYN;
+    ev[2].code = 0;
+    ev[2].value = 0;
+
+    ssize_t bytes = ::write (m_uinputDevice, ev, sizeof(ev));
+    if (bytes < 0) {
+        LOG((CLOG_DEBUG2 " failed to write mouse position to uinput device, fd: %i, ret: %i, error: %s",
+             m_uinputDevice, (int) bytes, ::strerror(errno)));
+    }
 }
 
 void
@@ -1797,29 +1671,34 @@ void XWindowsScreen::initUInput()
     DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
     DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
     for (int i = 1; i <= 248; i++) {
-    	DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
+        DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
     }
+    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, BTN_LEFT);
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_REL);
 
-    struct uinput_user_dev uidev;
-    std::memset (&uidev, 0, sizeof(uidev));
-    ::strncpy (uidev.name, "synergy", UINPUT_MAX_NAME_SIZE);
-    uidev.id.bustype = BUS_USB;
-    uidev.id.product = 0x1337;
-    uidev.id.vendor = 0x60E0;
-    uidev.id.version = 2;
 
-    ssize_t ret = ::write (m_uinputDevice, &uidev, sizeof(uidev));
-    if (ret < 0) {
-        LOG ((CLOG_DEBUG2 "Failed to write new uinput device, error: %s",
+    DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_X);
+    DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_Y);
+
+    struct uinput_user_dev input_dev;
+    std::memset (&input_dev, 0, sizeof(input_dev));
+    ::strncpy (input_dev.name, "synergy", UINPUT_MAX_NAME_SIZE);
+    input_dev.id.bustype = BUS_USB;
+    input_dev.id.product = 0x1337;
+    input_dev.id.vendor = 0x60E0;
+    input_dev.id.version = 2;
+
+    auto const wok = ::write (m_uinputDevice, &input_dev, sizeof(input_dev));
+    if (wok < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to write to uinput device, fd: %i, error: %s", m_uinputDevice,
               ::strerror(errno)));
         return;
     }
 
-    ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
+    auto const ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
     if (ret < 0) {
-        LOG ((CLOG_DEBUG2 "Failed to create new uinput device, error: %s",
+        LOG ((CLOG_DEBUG2 "Failed to create uinput device, fd: %i, error: %s", m_uinputDevice,
               ::strerror(errno)));
-        return;
     }
 }
 
