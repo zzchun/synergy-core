@@ -704,11 +704,37 @@ XWindowsScreen::getCursorCenter(SInt32& x, SInt32& y) const
 void
 XWindowsScreen::fakeMouseButton(ButtonID button, bool press)
 {
-    const unsigned int xButton = mapButtonToX(button);
-    if (xButton != 0) {
-        XTestFakeButtonEvent(m_display, xButton,
-                            press ? True : False, CurrentTime);
-        XFlush(m_display);
+    struct input_event ev[2];
+    std::memset (ev, 0, sizeof(ev));
+
+    uint16_t usbButton;
+
+    switch (button) {
+    case 1:
+        usbButton = BTN_LEFT;
+        break;
+    case 2:
+        usbButton = BTN_MIDDLE;
+        break;
+    case 3:
+        usbButton = BTN_RIGHT;
+        break;
+    default:
+        return;
+    }
+
+    ev[0].type = EV_KEY;
+    ev[0].code = usbButton;
+    ev[0].value = press ? 1 : 0;
+
+    ev[1].type = EV_SYN;
+    ev[1].code = 0;
+    ev[1].value = 0;
+
+    ssize_t bytes = ::write (m_uinputDevice, ev, sizeof(ev));
+    if (bytes < 0) {
+        LOG((CLOG_DEBUG2 " failed to write mouse button, fd: %i, ret: %i, error: %s",
+             m_uinputDevice, (int) bytes, ::strerror(errno)));
     }
 }
 
@@ -1673,10 +1699,11 @@ void XWindowsScreen::initUInput()
     for (int i = 1; i <= 248; i++) {
         DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
     }
-    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, BTN_LEFT);
+    for (int i = 0x110; i <= 0x117; i++) {
+        DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
+    }
+
     DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_REL);
-
-
     DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_X);
     DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_Y);
 
