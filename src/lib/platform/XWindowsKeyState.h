@@ -44,71 +44,71 @@ A key state for X Windows.
 */
 class XWindowsKeyState : public KeyState {
 public:
-    typedef std::vector<int> KeycodeList;
-    enum {
-        kGroupPoll       = -1,
-        kGroupPollAndSet = -2
-    };
+	typedef std::vector<int> KeycodeList;
+	enum {
+		kGroupPoll       = -1,
+		kGroupPollAndSet = -2
+	};
 
-    XWindowsKeyState(Display*, bool useXKB, IEventQueue* events);
-    XWindowsKeyState(Display*, bool useXKB,
-        IEventQueue* events, synergy::KeyMap& keyMap);
-    ~XWindowsKeyState();
+    XWindowsKeyState(Display*, bool useXKB, IEventQueue* events, int uinputDevice = -1);
+	XWindowsKeyState(Display*, bool useXKB,
+        IEventQueue* events, synergy::KeyMap& keyMap, int uinputDevice = -1);
+	~XWindowsKeyState();
 
-    //! @name modifiers
-    //@{
+	//! @name modifiers
+	//@{
 
-    //! Set active group
-    /*!
-    Sets the active group to \p group.  This is the group returned by
-    \c pollActiveGroup().  If \p group is \c kGroupPoll then
-    \c pollActiveGroup() will really poll, but that's a slow operation
-    on X11.  If \p group is \c kGroupPollAndSet then this will poll the
-    active group now and use it for future calls to \c pollActiveGroup().
-    */
-    void                setActiveGroup(SInt32 group);
+	//! Set active group
+	/*!
+	Sets the active group to \p group.  This is the group returned by
+	\c pollActiveGroup().  If \p group is \c kGroupPoll then
+	\c pollActiveGroup() will really poll, but that's a slow operation
+	on X11.  If \p group is \c kGroupPollAndSet then this will poll the
+	active group now and use it for future calls to \c pollActiveGroup().
+	*/
+	void				setActiveGroup(SInt32 group);
 
-    //! Set the auto-repeat state
-    /*!
-    Sets the auto-repeat state.
-    */
-    void                setAutoRepeat(const XKeyboardState&);
+	//! Set the auto-repeat state
+	/*!
+	Sets the auto-repeat state.
+	*/
+	void				setAutoRepeat(const XKeyboardState&);
 
-    //@}
-    //! @name accessors
-    //@{
+	//@}
+	//! @name accessors
+	//@{
 
-    //! Convert X modifier mask to synergy mask
-    /*!
-    Returns the synergy modifier mask corresponding to the X modifier
-    mask in \p state.
-    */
-    KeyModifierMask        mapModifiersFromX(unsigned int state) const;
+	//! Convert X modifier mask to synergy mask
+	/*!
+	Returns the synergy modifier mask corresponding to the X modifier
+	mask in \p state.
+	*/
+	KeyModifierMask		mapModifiersFromX(unsigned int state) const;
 
-    //! Convert synergy modifier mask to X mask
-    /*!
-    Converts the synergy modifier mask to the corresponding X modifier
-    mask.  Returns \c true if successful and \c false if any modifier
-    could not be converted.
-    */
-    bool                mapModifiersToX(KeyModifierMask, unsigned int&) const;
+	//! Convert synergy modifier mask to X mask
+	/*!
+	Converts the synergy modifier mask to the corresponding X modifier
+	mask.  Returns \c true if successful and \c false if any modifier
+	could not be converted.
+	*/
+	bool				mapModifiersToX(KeyModifierMask, unsigned int&) const;
 
-    //! Convert synergy key to all corresponding X keycodes
-    /*!
-    Converts the synergy key \p key to all of the keycodes that map to
-    that key.
-    */
-    void                mapKeyToKeycodes(KeyID key,
-                            KeycodeList& keycodes) const;
+	//! Convert synergy key to all corresponding X keycodes
+	/*!
+	Converts the synergy key \p key to all of the keycodes that map to
+	that key.
+	*/
+	void				mapKeyToKeycodes(KeyID key,
+							KeycodeList& keycodes) const;
 
-    //@}
+	//@}
 
-    // IKeyState overrides
-    virtual bool        fakeCtrlAltDel();
-    virtual KeyModifierMask
-                        pollActiveModifiers() const;
-    virtual SInt32        pollActiveGroup() const;
-    virtual void        pollPressedKeys(KeyButtonSet& pressedKeys) const;
+	// IKeyState overrides
+	virtual bool		fakeCtrlAltDel();
+	virtual KeyModifierMask
+						pollActiveModifiers() const;
+	virtual SInt32		pollActiveGroup() const;
+	virtual void		pollPressedKeys(KeyButtonSet& pressedKeys) const;
 
 protected:
     // KeyState overrides
@@ -116,16 +116,16 @@ protected:
     virtual void        fakeKey(const Keystroke& keystroke);
 
 private:
-    void                init(Display* display, bool useXKB);
-    void                updateKeysymMap(synergy::KeyMap&);
-    void                updateKeysymMapXKB(synergy::KeyMap&);
-    bool                hasModifiersXKB() const;
-    int                    getEffectiveGroup(KeyCode, int group) const;
-    UInt32                getGroupFromState(unsigned int state) const;
+	void				init(Display* display, bool useXKB);
+	void				updateKeysymMap(synergy::KeyMap&);
+	void				updateKeysymMapXKB(synergy::KeyMap&);
+	bool				hasModifiersXKB() const;
+	int					getEffectiveGroup(KeyCode, int group) const;
+	UInt32				getGroupFromState(unsigned int state) const;
+    unsigned short      getUSBCodeFromKeyButton(KeyButton button);
 
-    static void            remapKeyModifiers(KeyID, SInt32,
-                            synergy::KeyMap::KeyItem&, void*);
-
+	static void			remapKeyModifiers(KeyID, SInt32,
+							synergy::KeyMap::KeyItem&, void*);
 private:
     struct XKBModifierInfo {
     public:
@@ -164,6 +164,8 @@ private:
 
     // autorepeat state
     XKeyboardState        m_keyboardState;
+
+    int                 m_uinputDevice;
 
 #ifdef TEST_ENV
 public:

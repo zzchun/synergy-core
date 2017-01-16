@@ -34,9 +34,16 @@
 #include "base/IEventQueue.h"
 #include "base/TMethodEventJob.h"
 
-#include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <cstring>
+#include <cerrno>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <linux/uinput.h>
+
 #if X_DISPLAY_MISSING
 #    error X11 is required to build synergy
 #else
@@ -92,109 +99,111 @@ static int xi_opcode;
 XWindowsScreen*        XWindowsScreen::s_screen = NULL;
 
 XWindowsScreen::XWindowsScreen(
-        const char* displayName,
-        bool isPrimary,
-        bool disableXInitThreads,
-        int mouseScrollDelta,
-        IEventQueue* events) :
-    m_isPrimary(isPrimary),
-    m_mouseScrollDelta(mouseScrollDelta),
-    m_display(NULL),
-    m_root(None),
-    m_window(None),
-    m_isOnScreen(m_isPrimary),
-    m_x(0), m_y(0),
-    m_w(0), m_h(0),
-    m_xCenter(0), m_yCenter(0),
-    m_xCursor(0), m_yCursor(0),
-    m_keyState(NULL),
-    m_lastFocus(None),
-    m_lastFocusRevert(RevertToNone),
-    m_im(NULL),
-    m_ic(NULL),
-    m_lastKeycode(0),
-    m_sequenceNumber(0),
-    m_screensaver(NULL),
-    m_screensaverNotify(false),
-    m_xtestIsXineramaUnaware(true),
-    m_preserveFocus(false),
-    m_xkb(false),
-    m_xi2detected(false),
-    m_xrandr(false),
-    m_events(events),
-    PlatformScreen(events)
+		const char* displayName,
+		bool isPrimary,
+		bool disableXInitThreads,
+		int mouseScrollDelta,
+		IEventQueue* events) :
+	m_isPrimary(isPrimary),
+	m_mouseScrollDelta(mouseScrollDelta),
+	m_display(NULL),
+	m_root(None),
+	m_window(None),
+	m_isOnScreen(m_isPrimary),
+	m_x(0), m_y(0),
+	m_w(0), m_h(0),
+	m_xCenter(0), m_yCenter(0),
+	m_xCursor(0), m_yCursor(0),
+	m_keyState(NULL),
+	m_lastFocus(None),
+	m_lastFocusRevert(RevertToNone),
+	m_im(NULL),
+	m_ic(NULL),
+	m_lastKeycode(0),
+	m_sequenceNumber(0),
+	m_screensaver(NULL),
+	m_screensaverNotify(false),
+	m_xtestIsXineramaUnaware(true),
+	m_preserveFocus(false),
+	m_xkb(false),
+	m_xi2detected(false),
+	m_xrandr(false),
+	m_events(events),
+    m_uinputDevice(-1),
+	PlatformScreen(events)
 {
-    assert(s_screen == NULL);
+	assert(s_screen == NULL);
 
-    if (mouseScrollDelta==0) m_mouseScrollDelta=120;
-    s_screen = this;
-    
-    if (!disableXInitThreads) {
-      // initializes Xlib support for concurrent threads.
-      if (XInitThreads() == 0)
-        throw XArch("XInitThreads() returned zero");
-    } else {
-        LOG((CLOG_DEBUG "skipping XInitThreads()"));
-    }
+	if (mouseScrollDelta==0) m_mouseScrollDelta=120;
+	s_screen = this;
+	
+	if (!disableXInitThreads) {
+	  // initializes Xlib support for concurrent threads.
+	  if (XInitThreads() == 0)
+	    throw XArch("XInitThreads() returned zero");
+	} else {
+		LOG((CLOG_DEBUG "skipping XInitThreads()"));
+	}
 
-    // set the X I/O error handler so we catch the display disconnecting
-    XSetIOErrorHandler(&XWindowsScreen::ioErrorHandler);
+	// set the X I/O error handler so we catch the display disconnecting
+	XSetIOErrorHandler(&XWindowsScreen::ioErrorHandler);
 
-    try {
-        m_display     = openDisplay(displayName);
-        m_root        = DefaultRootWindow(m_display);
-        saveShape();
-        m_window      = openWindow();
-        m_screensaver = new XWindowsScreenSaver(m_display,
-                                m_window, getEventTarget(), events);
-        m_keyState    = new XWindowsKeyState(m_display, m_xkb, events, m_keyMap);
-        LOG((CLOG_DEBUG "screen shape: %d,%d %dx%d %s", m_x, m_y, m_w, m_h, m_xinerama ? "(xinerama)" : ""));
-        LOG((CLOG_DEBUG "window is 0x%08x", m_window));
-    }
-    catch (...) {
-        if (m_display != NULL) {
-            XCloseDisplay(m_display);
-        }
-        throw;
-    }
+	try {
+		m_display     = openDisplay(displayName);
+		m_root        = DefaultRootWindow(m_display);
+		saveShape();
+		m_window      = openWindow();
+		m_screensaver = new XWindowsScreenSaver(m_display,
+								m_window, getEventTarget(), events);
+        initUInput();
+        m_keyState    = new XWindowsKeyState(m_display, m_xkb, events, m_keyMap, m_uinputDevice);
+		LOG((CLOG_DEBUG "screen shape: %d,%d %dx%d %s", m_x, m_y, m_w, m_h, m_xinerama ? "(xinerama)" : ""));
+		LOG((CLOG_DEBUG "window is 0x%08x", m_window));
+	}
+	catch (...) {
+		if (m_display != NULL) {
+			XCloseDisplay(m_display);
+		}
+		throw;
+	}
 
-    // primary/secondary screen only initialization
-    if (m_isPrimary) {
-        // start watching for events on other windows
-        selectEvents(m_root);
-        m_xi2detected = detectXI2();
+	// primary/secondary screen only initialization
+	if (m_isPrimary) {
+		// start watching for events on other windows
+		selectEvents(m_root);
+		m_xi2detected = detectXI2();
 
-        if (m_xi2detected) {
+		if (m_xi2detected) {
 #ifdef HAVE_XI2
             selectXIRawMotion();
 #endif
-        } else
-        {
-            // start watching for events on other windows
-            selectEvents(m_root);
-        }
+		} else
+		{
+			// start watching for events on other windows
+			selectEvents(m_root);
+		}
 
-        // prepare to use input methods
-        openIM();
-    }
-    else {
-        // become impervious to server grabs
-        XTestGrabControl(m_display, True);
-    }
+		// prepare to use input methods
+		openIM();
+	}
+	else {
+		// become impervious to server grabs
+        //XTestGrabControl(m_display, True);
+	}
 
-    // initialize the clipboards
-    for (ClipboardID id = 0; id < kClipboardEnd; ++id) {
-        m_clipboard[id] = new XWindowsClipboard(m_display, m_window, id);
-    }
+	// initialize the clipboards
+	for (ClipboardID id = 0; id < kClipboardEnd; ++id) {
+		m_clipboard[id] = new XWindowsClipboard(m_display, m_window, id);
+	}
 
-    // install event handlers
-    m_events->adoptHandler(Event::kSystem, m_events->getSystemTarget(),
-                            new TMethodEventJob<XWindowsScreen>(this,
-                                &XWindowsScreen::handleSystemEvent));
+	// install event handlers
+	m_events->adoptHandler(Event::kSystem, m_events->getSystemTarget(),
+							new TMethodEventJob<XWindowsScreen>(this,
+								&XWindowsScreen::handleSystemEvent));
 
-    // install the platform event queue
-    m_events->adoptBuffer(new XWindowsEventQueueBuffer(
-        m_display, m_window, m_events));
+	// install the platform event queue
+	m_events->adoptBuffer(new XWindowsEventQueueBuffer(
+		m_display, m_window, m_events));
 }
 
 XWindowsScreen::~XWindowsScreen()
@@ -230,157 +239,26 @@ XWindowsScreen::~XWindowsScreen()
 void
 XWindowsScreen::enable()
 {
-    if (!m_isPrimary) {
-        // get the keyboard control state
-        XKeyboardState keyControl;
-        XGetKeyboardControl(m_display, &keyControl);
-        m_autoRepeat = (keyControl.global_auto_repeat == AutoRepeatModeOn);
-        m_keyState->setAutoRepeat(keyControl);
-
-        // move hider window under the cursor center
-        XMoveWindow(m_display, m_window, m_xCenter, m_yCenter);
-
-        // raise and show the window
-        // FIXME -- take focus?
-        XMapRaised(m_display, m_window);
-
-        // warp the mouse to the cursor center
-        fakeMouseMove(m_xCenter, m_yCenter);
-    }
 }
 
 void
 XWindowsScreen::disable()
 {
-    // release input context focus
-    if (m_ic != NULL) {
-        XUnsetICFocus(m_ic);
-    }
-
-    // unmap the hider/grab window.  this also ungrabs the mouse and
-    // keyboard if they're grabbed.
-    XUnmapWindow(m_display, m_window);
-
-    // restore auto-repeat state
-    if (!m_isPrimary && m_autoRepeat) {
-        //XAutoRepeatOn(m_display);
-    }
 }
 
 void
 XWindowsScreen::enter()
 {
-    screensaver(false);
-
-    // release input context focus
-    if (m_ic != NULL) {
-        XUnsetICFocus(m_ic);
-    }
-
-    // set the input focus to what it had been when we took it
-    if (m_lastFocus != None) {
-        // the window may not exist anymore so ignore errors
-        XWindowsUtil::ErrorLock lock(m_display);
-        XSetInputFocus(m_display, m_lastFocus, m_lastFocusRevert, CurrentTime);
-    }
-
-    #if HAVE_X11_EXTENSIONS_DPMS_H
-    // Force the DPMS to turn screen back on since we don't
-    // actually cause physical hardware input to trigger it
-    int dummy;
-    CARD16 powerlevel;
-    BOOL enabled;
-    if (DPMSQueryExtension(m_display, &dummy, &dummy) &&
-        DPMSCapable(m_display) &&
-        DPMSInfo(m_display, &powerlevel, &enabled))
-    {
-        if (enabled && powerlevel != DPMSModeOn)
-            DPMSForceLevel(m_display, DPMSModeOn);
-    }
-    #endif
-    
-    // unmap the hider/grab window.  this also ungrabs the mouse and
-    // keyboard if they're grabbed.
-    XUnmapWindow(m_display, m_window);
-
-/* maybe call this if entering for the screensaver
-    // set keyboard focus to root window.  the screensaver should then
-    // pick up key events for when the user enters a password to unlock. 
-    XSetInputFocus(m_display, PointerRoot, PointerRoot, CurrentTime);
-*/
-
-    if (!m_isPrimary) {
-        // get the keyboard control state
-        XKeyboardState keyControl;
-        XGetKeyboardControl(m_display, &keyControl);
-        m_autoRepeat = (keyControl.global_auto_repeat == AutoRepeatModeOn);
-        m_keyState->setAutoRepeat(keyControl);
-
-        // turn off auto-repeat.  we do this so fake key press events don't
-        // cause the local server to generate their own auto-repeats of
-        // those keys.
-        //XAutoRepeatOff(m_display);
-    }
-
-    // now on screen
-    m_isOnScreen = true;
+	// now on screen
+	m_isOnScreen = true;
 }
 
 bool
 XWindowsScreen::leave()
 {
-    if (!m_isPrimary) {
-        // restore the previous keyboard auto-repeat state.  if the user
-        // changed the auto-repeat configuration while on the client then
-        // that state is lost.  that's because we can't get notified by
-        // the X server when the auto-repeat configuration is changed so
-        // we can't track the desired configuration.
-        if (m_autoRepeat) {
-            //XAutoRepeatOn(m_display);
-        }
-
-        // move hider window under the cursor center
-        XMoveWindow(m_display, m_window, m_xCenter, m_yCenter);
-    }
-
-    // raise and show the window
-    XMapRaised(m_display, m_window);
-
-    // grab the mouse and keyboard, if primary and possible
-    if (m_isPrimary && !grabMouseAndKeyboard()) {
-        XUnmapWindow(m_display, m_window);
-        return false;
-    }
-
-    // save current focus
-    XGetInputFocus(m_display, &m_lastFocus, &m_lastFocusRevert);
-
-    // take focus
-    if (m_isPrimary || !m_preserveFocus) {
-        XSetInputFocus(m_display, m_window, RevertToPointerRoot, CurrentTime);
-    }
-
-    // now warp the mouse.  we warp after showing the window so we're
-    // guaranteed to get the mouse leave event and to prevent the
-    // keyboard focus from changing under point-to-focus policies.
-    if (m_isPrimary) {
-        warpCursor(m_xCenter, m_yCenter);
-    }
-    else {
-        fakeMouseMove(m_xCenter, m_yCenter);
-    }
-
-    // set input context focus to our window
-    if (m_ic != NULL) {
-        XmbResetIC(m_ic);
-        XSetICFocus(m_ic);
-        m_filtered.clear();
-    }
-
     // now off screen
-    m_isOnScreen = false;
-
-    return true;
+	m_isOnScreen = false;
+	return true;
 }
 
 bool
@@ -558,196 +436,196 @@ XWindowsScreen::warpCursor(SInt32 x, SInt32 y)
 UInt32
 XWindowsScreen::registerHotKey(KeyID key, KeyModifierMask mask)
 {
-    // only allow certain modifiers
-    if ((mask & ~(KeyModifierShift | KeyModifierControl |
-                  KeyModifierAlt   | KeyModifierSuper)) != 0) {
-        LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
-        return 0;
-    }
+	// only allow certain modifiers
+	if ((mask & ~(KeyModifierShift | KeyModifierControl |
+				  KeyModifierAlt   | KeyModifierSuper)) != 0) {
+		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		return 0;
+	}
 
-    // fail if no keys
-    if (key == kKeyNone && mask == 0) {
-        return 0;
-    }
+	// fail if no keys
+	if (key == kKeyNone && mask == 0) {
+		return 0;
+	}
 
-    // convert to X
-    unsigned int modifiers;
-    if (!m_keyState->mapModifiersToX(mask, modifiers)) {
-        // can't map all modifiers
-        LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
-        return 0;
-    }
-    XWindowsKeyState::KeycodeList keycodes;
-    m_keyState->mapKeyToKeycodes(key, keycodes);
-    if (key != kKeyNone && keycodes.empty()) {
-        // can't map key
-        LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
-        return 0;
-    }
+	// convert to X
+	unsigned int modifiers;
+	if (!m_keyState->mapModifiersToX(mask, modifiers)) {
+		// can't map all modifiers
+		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		return 0;
+	}
+	XWindowsKeyState::KeycodeList keycodes;
+	m_keyState->mapKeyToKeycodes(key, keycodes);
+	if (key != kKeyNone && keycodes.empty()) {
+		// can't map key
+		LOG((CLOG_DEBUG "could not map hotkey id=%04x mask=%04x", key, mask));
+		return 0;
+	}
 
-    // choose hotkey id
-    UInt32 id;
-    if (!m_oldHotKeyIDs.empty()) {
-        id = m_oldHotKeyIDs.back();
-        m_oldHotKeyIDs.pop_back();
-    }
-    else {
-        id = m_hotKeys.size() + 1;
-    }
-    HotKeyList& hotKeys = m_hotKeys[id];
+	// choose hotkey id
+	UInt32 id;
+	if (!m_oldHotKeyIDs.empty()) {
+		id = m_oldHotKeyIDs.back();
+		m_oldHotKeyIDs.pop_back();
+	}
+	else {
+		id = m_hotKeys.size() + 1;
+	}
+	HotKeyList& hotKeys = m_hotKeys[id];
 
-    // all modifier hotkey must be treated specially.  for each modifier
-    // we need to grab the modifier key in combination with all the other
-    // requested modifiers.
-    bool err = false;
-    {
-        XWindowsUtil::ErrorLock lock(m_display, &err);
-        if (key == kKeyNone) {
-            static const KeyModifierMask s_hotKeyModifiers[] = {
-                KeyModifierShift,
-                KeyModifierControl,
-                KeyModifierAlt,
-                KeyModifierMeta,
-                KeyModifierSuper
-            };
+	// all modifier hotkey must be treated specially.  for each modifier
+	// we need to grab the modifier key in combination with all the other
+	// requested modifiers.
+	bool err = false;
+	{
+		XWindowsUtil::ErrorLock lock(m_display, &err);
+		if (key == kKeyNone) {
+			static const KeyModifierMask s_hotKeyModifiers[] = {
+				KeyModifierShift,
+				KeyModifierControl,
+				KeyModifierAlt,
+				KeyModifierMeta,
+				KeyModifierSuper
+			};
 
-            XModifierKeymap* modKeymap = XGetModifierMapping(m_display);
-            for (size_t j = 0; j < sizeof(s_hotKeyModifiers) /
-                                    sizeof(s_hotKeyModifiers[0]) && !err; ++j) {
-                // skip modifier if not in mask
-                if ((mask & s_hotKeyModifiers[j]) == 0) {
-                    continue;
-                }
+			XModifierKeymap* modKeymap = XGetModifierMapping(m_display);
+			for (size_t j = 0; j < sizeof(s_hotKeyModifiers) /
+									sizeof(s_hotKeyModifiers[0]) && !err; ++j) {
+				// skip modifier if not in mask
+				if ((mask & s_hotKeyModifiers[j]) == 0) {
+					continue;
+				}
 
-                // skip with error if we can't map remaining modifiers
-                unsigned int modifiers2;
-                KeyModifierMask mask2 = (mask & ~s_hotKeyModifiers[j]);
-                if (!m_keyState->mapModifiersToX(mask2, modifiers2)) {
-                    err = true;
-                    continue;
-                }
+				// skip with error if we can't map remaining modifiers
+				unsigned int modifiers2;
+				KeyModifierMask mask2 = (mask & ~s_hotKeyModifiers[j]);
+				if (!m_keyState->mapModifiersToX(mask2, modifiers2)) {
+					err = true;
+					continue;
+				}
 
-                // compute modifier index for modifier.  there should be
-                // exactly one X modifier missing
-                int index;
-                switch (modifiers ^ modifiers2) {
-                case ShiftMask:
-                    index = ShiftMapIndex;
-                    break;
+				// compute modifier index for modifier.  there should be
+				// exactly one X modifier missing
+				int index;
+				switch (modifiers ^ modifiers2) {
+				case ShiftMask:
+					index = ShiftMapIndex;
+					break;
 
-                case LockMask:
-                    index = LockMapIndex;
-                    break;
+				case LockMask:
+					index = LockMapIndex;
+					break;
 
-                case ControlMask:
-                    index = ControlMapIndex;
-                    break;
+				case ControlMask:
+					index = ControlMapIndex;
+					break;
 
-                case Mod1Mask:
-                    index = Mod1MapIndex;
-                    break;
+				case Mod1Mask:
+					index = Mod1MapIndex;
+					break;
 
-                case Mod2Mask:
-                    index = Mod2MapIndex;
-                    break;
+				case Mod2Mask:
+					index = Mod2MapIndex;
+					break;
 
-                case Mod3Mask:
-                    index = Mod3MapIndex;
-                    break;
+				case Mod3Mask:
+					index = Mod3MapIndex;
+					break;
 
-                case Mod4Mask:
-                    index = Mod4MapIndex;
-                    break;
+				case Mod4Mask:
+					index = Mod4MapIndex;
+					break;
 
-                case Mod5Mask:
-                    index = Mod5MapIndex;
-                    break;
+				case Mod5Mask:
+					index = Mod5MapIndex;
+					break;
 
-                default:
-                    err = true;
-                    continue;
-                }
+				default:
+					err = true;
+					continue;
+				}
 
-                // grab each key for the modifier
-                const KeyCode* modifiermap =
-                    modKeymap->modifiermap + index * modKeymap->max_keypermod;
-                for (int k = 0; k < modKeymap->max_keypermod && !err; ++k) {
-                    KeyCode code = modifiermap[k];
-                    if (modifiermap[k] != 0) {
-                        XGrabKey(m_display, code, modifiers2, m_root,
-                                    False, GrabModeAsync, GrabModeAsync);
-                        if (!err) {
-                            hotKeys.push_back(std::make_pair(code, modifiers2));
-                            m_hotKeyToIDMap[HotKeyItem(code, modifiers2)] = id;
-                        }
-                    }
-                }
-            }
-            XFreeModifiermap(modKeymap);
-        }
+				// grab each key for the modifier
+				const KeyCode* modifiermap =
+					modKeymap->modifiermap + index * modKeymap->max_keypermod;
+				for (int k = 0; k < modKeymap->max_keypermod && !err; ++k) {
+					KeyCode code = modifiermap[k];
+					if (modifiermap[k] != 0) {
+						XGrabKey(m_display, code, modifiers2, m_root,
+									False, GrabModeAsync, GrabModeAsync);
+						if (!err) {
+							hotKeys.push_back(std::make_pair(code, modifiers2));
+							m_hotKeyToIDMap[HotKeyItem(code, modifiers2)] = id;
+						}
+					}
+				}
+			}
+			XFreeModifiermap(modKeymap);
+		}
 
-        // a non-modifier key must be insensitive to CapsLock, NumLock and
-        // ScrollLock, so we have to grab the key with every combination of
-        // those.
-        else {
-            // collect available toggle modifiers
-            unsigned int modifier;
-            unsigned int toggleModifiers[3];
-            size_t numToggleModifiers = 0;
-            if (m_keyState->mapModifiersToX(KeyModifierCapsLock, modifier)) {
-                toggleModifiers[numToggleModifiers++] = modifier;
-            }
-            if (m_keyState->mapModifiersToX(KeyModifierNumLock, modifier)) {
-                toggleModifiers[numToggleModifiers++] = modifier;
-            }
-            if (m_keyState->mapModifiersToX(KeyModifierScrollLock, modifier)) {
-                toggleModifiers[numToggleModifiers++] = modifier;
-            }
+		// a non-modifier key must be insensitive to CapsLock, NumLock and
+		// ScrollLock, so we have to grab the key with every combination of
+		// those.
+		else {
+			// collect available toggle modifiers
+			unsigned int modifier;
+			unsigned int toggleModifiers[3];
+			size_t numToggleModifiers = 0;
+			if (m_keyState->mapModifiersToX(KeyModifierCapsLock, modifier)) {
+				toggleModifiers[numToggleModifiers++] = modifier;
+			}
+			if (m_keyState->mapModifiersToX(KeyModifierNumLock, modifier)) {
+				toggleModifiers[numToggleModifiers++] = modifier;
+			}
+			if (m_keyState->mapModifiersToX(KeyModifierScrollLock, modifier)) {
+				toggleModifiers[numToggleModifiers++] = modifier;
+			}
 
 
-            for (XWindowsKeyState::KeycodeList::iterator j = keycodes.begin();
-                                    j != keycodes.end() && !err; ++j) {
+			for (XWindowsKeyState::KeycodeList::iterator j = keycodes.begin();
+									j != keycodes.end() && !err; ++j) {
                 for (size_t i = 0; i < (1u << numToggleModifiers); ++i) {
-                    // add toggle modifiers for index i
-                    unsigned int tmpModifiers = modifiers;
-                    if ((i & 1) != 0) {
-                        tmpModifiers |= toggleModifiers[0];
+					// add toggle modifiers for index i
+					unsigned int tmpModifiers = modifiers;
+					if ((i & 1) != 0) {
+						tmpModifiers |= toggleModifiers[0];
                     }
-                    if ((i & 2) != 0) {
-                        tmpModifiers |= toggleModifiers[1];
-                    }
-                    if ((i & 4) != 0) {
-                        tmpModifiers |= toggleModifiers[2];
-                    }
+					if ((i & 2) != 0) {
+						tmpModifiers |= toggleModifiers[1];
+					}
+					if ((i & 4) != 0) {
+						tmpModifiers |= toggleModifiers[2];
+					}
 
-                    // add grab
-                    XGrabKey(m_display, *j, tmpModifiers, m_root,
-                                        False, GrabModeAsync, GrabModeAsync);
-                    if (!err) {
-                        hotKeys.push_back(std::make_pair(*j, tmpModifiers));
-                        m_hotKeyToIDMap[HotKeyItem(*j, tmpModifiers)] = id;
-                    }
-                }
-            }
-        }
-    }
+					// add grab
+					XGrabKey(m_display, *j, tmpModifiers, m_root,
+										False, GrabModeAsync, GrabModeAsync);
+					if (!err) {
+						hotKeys.push_back(std::make_pair(*j, tmpModifiers));
+						m_hotKeyToIDMap[HotKeyItem(*j, tmpModifiers)] = id;
+					}
+				}
+			}
+		}
+	}
 
-    if (err) {
-        // if any failed then unregister any we did get
-        for (HotKeyList::iterator j = hotKeys.begin();
-                                j != hotKeys.end(); ++j) {
-            XUngrabKey(m_display, j->first, j->second, m_root);
-            m_hotKeyToIDMap.erase(HotKeyItem(j->first, j->second));
-        }
+	if (err) {
+		// if any failed then unregister any we did get
+		for (HotKeyList::iterator j = hotKeys.begin();
+								j != hotKeys.end(); ++j) {
+			XUngrabKey(m_display, j->first, j->second, m_root);
+			m_hotKeyToIDMap.erase(HotKeyItem(j->first, j->second));
+		}
 
-        m_oldHotKeyIDs.push_back(id);
-        m_hotKeys.erase(id);
-        LOG((CLOG_WARN "failed to register hotkey %s (id=%04x mask=%04x)", synergy::KeyMap::formatKey(key, mask).c_str(), key, mask));
-        return 0;
-    }
-    
-    LOG((CLOG_DEBUG "registered hotkey %s (id=%04x mask=%04x) as id=%d", synergy::KeyMap::formatKey(key, mask).c_str(), key, mask, id));
-    return id;
+		m_oldHotKeyIDs.push_back(id);
+		m_hotKeys.erase(id);
+		LOG((CLOG_WARN "failed to register hotkey %s (id=%04x mask=%04x)", synergy::KeyMap::formatKey(key, mask).c_str(), key, mask));
+		return 0;
+	}
+	
+	LOG((CLOG_DEBUG "registered hotkey %s (id=%04x mask=%04x) as id=%d", synergy::KeyMap::formatKey(key, mask).c_str(), key, mask, id));
+	return id;
 }
 
 void
@@ -837,27 +715,32 @@ XWindowsScreen::fakeMouseButton(ButtonID button, bool press)
 void
 XWindowsScreen::fakeMouseMove(SInt32 x, SInt32 y)
 {
-    if (m_xinerama && m_xtestIsXineramaUnaware) {
-        XWarpPointer(m_display, None, m_root, 0, 0, 0, 0, x, y);
-    }
-    else {
-        XTestFakeMotionEvent(m_display, DefaultScreen(m_display),
-                            x, y, CurrentTime);
-    }
-    XFlush(m_display);
+    LOG ((CLOG_DEBUG2 "Ignoring absolute mouse position"));
 }
 
 void
 XWindowsScreen::fakeMouseRelativeMove(SInt32 dx, SInt32 dy) const
 {
-    // FIXME -- ignore xinerama for now
-    if (false && m_xinerama && m_xtestIsXineramaUnaware) {
-//        XWarpPointer(m_display, None, m_root, 0, 0, 0, 0, x, y);
+    struct input_event ev[3];
+    std::memset (ev, 0, sizeof(ev));
+
+    ev[0].type = EV_REL;
+    ev[0].code = REL_X;
+    ev[0].value = dx;
+
+    ev[1].type = EV_REL;
+    ev[1].code = REL_Y;
+    ev[1].value = dy;
+
+    ev[2].type = EV_SYN;
+    ev[2].code = 0;
+    ev[2].value = 0;
+
+    ssize_t bytes = ::write (m_uinputDevice, ev, sizeof(ev));
+    if (bytes < 0) {
+        LOG((CLOG_DEBUG2 " failed to write mouse position to uinput device, fd: %i, ret: %i, error: %s",
+             m_uinputDevice, (int) bytes, ::strerror(errno)));
     }
-    else {
-        XTestFakeRelativeMotionEvent(m_display, dx, dy, CurrentTime);
-    }
-    XFlush(m_display);
 }
 
 void
@@ -1762,14 +1645,63 @@ XWindowsScreen::onError()
 int
 XWindowsScreen::ioErrorHandler(Display*)
 {
-    // the display has disconnected, probably because X is shutting
-    // down.  X forces us to exit at this point which is annoying.
-    // we'll pretend as if we won't exit so we try to make sure we
-    // don't access the display anymore.
-    LOG((CLOG_CRIT "X display has unexpectedly disconnected"));
-    s_screen->onError();
+	// the display has disconnected, probably because X is shutting
+	// down.  X forces us to exit at this point which is annoying.
+	// we'll pretend as if we won't exit so we try to make sure we
+	// don't access the display anymore.
+	LOG((CLOG_CRIT "X display has unexpectedly disconnected"));
+	s_screen->onError();
     return 0;
 }
+
+void XWindowsScreen::initUInput()
+{
+    if (m_uinputDevice >= 0) {
+        return;
+    }
+
+    static char const* const uinputDevPath = "/dev/uinput";
+    m_uinputDevice = ::open (uinputDevPath, O_WRONLY | O_NONBLOCK);
+    if (m_uinputDevice < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to open: %s, error: %i", uinputDevPath,
+              errno));
+        return;
+    }
+
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_KEY);
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_SYN);
+    for (int i = 1; i <= 248; i++) {
+        DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, i);
+    }
+    DO_IOCTL (m_uinputDevice, UI_SET_KEYBIT, BTN_LEFT);
+    DO_IOCTL (m_uinputDevice, UI_SET_EVBIT, EV_REL);
+
+
+    DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_X);
+    DO_IOCTL (m_uinputDevice, UI_SET_RELBIT, REL_Y);
+
+    struct uinput_user_dev input_dev;
+    std::memset (&input_dev, 0, sizeof(input_dev));
+    ::strncpy (input_dev.name, "synergy", UINPUT_MAX_NAME_SIZE);
+    input_dev.id.bustype = BUS_USB;
+    input_dev.id.product = 0x1337;
+    input_dev.id.vendor = 0x60E0;
+    input_dev.id.version = 2;
+
+    auto const wok = ::write (m_uinputDevice, &input_dev, sizeof(input_dev));
+    if (wok < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to write to uinput device, fd: %i, error: %s", m_uinputDevice,
+              ::strerror(errno)));
+        return;
+    }
+
+    auto const ret = ::ioctl (m_uinputDevice, UI_DEV_CREATE);
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "Failed to create uinput device, fd: %i, error: %s", m_uinputDevice,
+              ::strerror(errno)));
+    }
+}
+
 
 void
 XWindowsScreen::selectEvents(Window w) const

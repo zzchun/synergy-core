@@ -22,6 +22,10 @@
 #include "base/EventTypes.h"
 #include "common/stdmap.h"
 #include "common/stdvector.h"
+#include "base/Log.h"
+
+#include <cstring>
+#include <sys/ioctl.h>
 
 #if X_DISPLAY_MISSING
 #    error X11 is required to build synergy
@@ -185,3 +189,18 @@ private:
 
     static KeySymMap    s_keySymToUCS4;
 };
+
+
+template <typename T> static inline
+int
+doIoctl (int const fd, unsigned long int const request,
+         char const* const requestString, T const& arg) {
+    int ret = ::ioctl (fd, request, arg);
+    if (ret < 0) {
+        LOG ((CLOG_DEBUG2 "ioctl failed on fd %i, request: %s, error: %s", fd,
+              requestString, ::strerror(errno)));
+    }
+    return ret;
+}
+
+#define DO_IOCTL(FD, REQ, ARG) doIoctl (FD, REQ, #REQ, ARG)

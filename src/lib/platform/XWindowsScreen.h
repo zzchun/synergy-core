@@ -114,6 +114,8 @@ private:
     void                onError();
     static int            ioErrorHandler(Display*);
 
+    void                initUInput();
+
 private:
     class KeyEventFilter {
     public:
@@ -154,99 +156,101 @@ private:
     static Bool            findKeyEvent(Display*, XEvent* xevent, XPointer arg);
 
 private:
-    struct HotKeyItem {
-    public:
-        HotKeyItem(int, unsigned int);
+	struct HotKeyItem {
+	public:
+		HotKeyItem(int, unsigned int);
 
-        bool            operator<(const HotKeyItem&) const;
+		bool			operator<(const HotKeyItem&) const;
 
-    private:
-        int                m_keycode;
-        unsigned int    m_mask;
-    };
-    typedef std::set<bool> FilteredKeycodes;
-    typedef std::vector<std::pair<int, unsigned int> > HotKeyList;
-    typedef std::map<UInt32, HotKeyList> HotKeyMap;
-    typedef std::vector<UInt32> HotKeyIDList;
-    typedef std::map<HotKeyItem, UInt32> HotKeyToIDMap;
+	private:
+		int				m_keycode;
+		unsigned int	m_mask;
+	};
+	typedef std::set<bool> FilteredKeycodes;
+	typedef std::vector<std::pair<int, unsigned int> > HotKeyList;
+	typedef std::map<UInt32, HotKeyList> HotKeyMap;
+	typedef std::vector<UInt32> HotKeyIDList;
+	typedef std::map<HotKeyItem, UInt32> HotKeyToIDMap;
 
-    // true if screen is being used as a primary screen, false otherwise
-    bool                m_isPrimary;
-    int                 m_mouseScrollDelta;
+	// true if screen is being used as a primary screen, false otherwise
+	bool				m_isPrimary;
+	int 				m_mouseScrollDelta;
 
-    Display*            m_display;
-    Window                m_root;
-    Window                m_window;
+	Display*			m_display;
+	Window				m_root;
+	Window				m_window;
 
-    // true if mouse has entered the screen
-    bool                m_isOnScreen;
+	// true if mouse has entered the screen
+	bool				m_isOnScreen;
 
-    // screen shape stuff
-    SInt32                m_x, m_y;
-    SInt32                m_w, m_h;
-    SInt32                m_xCenter, m_yCenter;
+	// screen shape stuff
+	SInt32				m_x, m_y;
+	SInt32				m_w, m_h;
+	SInt32				m_xCenter, m_yCenter;
 
-    // last mouse position
-    SInt32                m_xCursor, m_yCursor;
+	// last mouse position
+	SInt32				m_xCursor, m_yCursor;
 
-    // keyboard stuff
-    XWindowsKeyState*    m_keyState;
+	// keyboard stuff
+	XWindowsKeyState*	m_keyState;
 
-    // hot key stuff
-    HotKeyMap            m_hotKeys;
-    HotKeyIDList        m_oldHotKeyIDs;
-    HotKeyToIDMap        m_hotKeyToIDMap;
+	// hot key stuff
+	HotKeyMap			m_hotKeys;
+	HotKeyIDList		m_oldHotKeyIDs;
+	HotKeyToIDMap		m_hotKeyToIDMap;
 
-    // input focus stuff
-    Window                m_lastFocus;
-    int                    m_lastFocusRevert;
+	// input focus stuff
+	Window				m_lastFocus;
+	int					m_lastFocusRevert;
 
-    // input method stuff
-    XIM                    m_im;
-    XIC                    m_ic;
-    KeyCode                m_lastKeycode;
-    FilteredKeycodes    m_filtered;
+	// input method stuff
+	XIM					m_im;
+	XIC					m_ic;
+	KeyCode				m_lastKeycode;
+	FilteredKeycodes	m_filtered;
 
-    // clipboards
-    XWindowsClipboard*    m_clipboard[kClipboardEnd];
-    UInt32                m_sequenceNumber;
+	// clipboards
+	XWindowsClipboard*	m_clipboard[kClipboardEnd];
+	UInt32				m_sequenceNumber;
 
-    // screen saver stuff
-    XWindowsScreenSaver*    m_screensaver;
-    bool                m_screensaverNotify;
+	// screen saver stuff
+	XWindowsScreenSaver*	m_screensaver;
+	bool				m_screensaverNotify;
 
-    // logical to physical button mapping.  m_buttons[i] gives the
-    // physical button for logical button i+1.
-    std::vector<unsigned char>    m_buttons;
+	// logical to physical button mapping.  m_buttons[i] gives the
+	// physical button for logical button i+1.
+	std::vector<unsigned char>	m_buttons;
 
-    // true if global auto-repeat was enabled before we turned it off
-    bool                m_autoRepeat;
+	// true if global auto-repeat was enabled before we turned it off
+	bool				m_autoRepeat;
 
-    // stuff to workaround xtest being xinerama unaware.  attempting
-    // to fake a mouse motion under xinerama may behave strangely,
-    // especially if screen 0 is not at 0,0 or if faking a motion on
-    // a screen other than screen 0.
-    bool                m_xtestIsXineramaUnaware;
-    bool                m_xinerama;
+	// stuff to workaround xtest being xinerama unaware.  attempting
+	// to fake a mouse motion under xinerama may behave strangely,
+	// especially if screen 0 is not at 0,0 or if faking a motion on
+	// a screen other than screen 0.
+	bool				m_xtestIsXineramaUnaware;
+	bool				m_xinerama;
 
-    // stuff to work around lost focus issues on certain systems
-    // (ie: a MythTV front-end).
-    bool                m_preserveFocus;
+	// stuff to work around lost focus issues on certain systems
+	// (ie: a MythTV front-end).
+	bool				m_preserveFocus;
 
-    // XKB extension stuff
-    bool                m_xkb;
-    int                    m_xkbEventBase;
+	// XKB extension stuff
+	bool				m_xkb;
+	int					m_xkbEventBase;
 
-    bool                m_xi2detected;
+	bool				m_xi2detected;
 
-    // XRandR extension stuff
-    bool                m_xrandr;
-    int                 m_xrandrEventBase;
+	// XRandR extension stuff
+	bool                m_xrandr;
+	int                 m_xrandrEventBase;
 
-    IEventQueue*        m_events;
-    synergy::KeyMap                m_keyMap;
+	IEventQueue*		m_events;
+	synergy::KeyMap				m_keyMap;
 
-    // pointer to (singleton) screen.  this is only needed by
-    // ioErrorHandler().
-    static XWindowsScreen*    s_screen;
+    int                 m_uinputDevice;
+
+	// pointer to (singleton) screen.  this is only needed by
+	// ioErrorHandler().
+	static XWindowsScreen*	s_screen;
 };

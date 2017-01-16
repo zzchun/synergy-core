@@ -38,24 +38,36 @@
 #endif
 #endif
 
+#include <cstring>
+#include <cerrno>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <linux/input.h>
+#include <linux/uinput.h>
+
 static const size_t ModifiersFromXDefaultSize = 32;
 
 XWindowsKeyState::XWindowsKeyState(
-        Display* display, bool useXKB,
-        IEventQueue* events) :
-    KeyState(events),
-    m_display(display),
-    m_modifierFromX(ModifiersFromXDefaultSize)
+		Display* display, bool useXKB,
+        IEventQueue* events,
+        int uinputDevice) :
+	KeyState(events),
+	m_display(display),
+    m_modifierFromX(ModifiersFromXDefaultSize),
+    m_uinputDevice(uinputDevice)
 {
     init(display, useXKB);
 }
 
 XWindowsKeyState::XWindowsKeyState(
-    Display* display, bool useXKB,
-    IEventQueue* events, synergy::KeyMap& keyMap) :
-    KeyState(events, keyMap),
-    m_display(display),
-    m_modifierFromX(ModifiersFromXDefaultSize)
+	Display* display, bool useXKB,
+    IEventQueue* events, synergy::KeyMap& keyMap,
+    int uinputDevice) :
+	KeyState(events, keyMap),
+	m_display(display),
+	m_modifierFromX(ModifiersFromXDefaultSize),
+    m_uinputDevice(uinputDevice)
 {
     init(display, useXKB);
 }
@@ -238,30 +250,47 @@ XWindowsKeyState::getKeyMap(synergy::KeyMap& keyMap)
     updateKeysymMap(keyMap);
 }
 
+
 void
 XWindowsKeyState::fakeKey(const Keystroke& keystroke)
 {
-    switch (keystroke.m_type) {
-    case Keystroke::kButton:
-        LOG((CLOG_DEBUG1 "  %03x (%08x) %s", keystroke.m_data.m_button.m_button, keystroke.m_data.m_button.m_client, keystroke.m_data.m_button.m_press ? "down" : "up"));
-        if (keystroke.m_data.m_button.m_repeat) {
-            int c = keystroke.m_data.m_button.m_button;
-            int i = (c >> 3);
-            int b = 1 << (c & 7);
-            if (m_keyboardState.global_auto_repeat == AutoRepeatModeOff ||
-                (c!=113 && c!=116 && (m_keyboardState.auto_repeats[i] & b) == 0)) {
-                LOG((CLOG_DEBUG1 "  discard autorepeat"));
-                break;
-            }
-        }
-        XTestFakeKeyEvent(m_display, keystroke.m_data.m_button.m_button,
-                            keystroke.m_data.m_button.m_press ? True : False,
-                            CurrentTime);
-        break;
+    ssize_t wok = -1;
+	switch (keystroke.m_type) {
+	case Keystroke::kButton:
+		LOG((CLOG_DEBUG1 "  %03x (%08x) %s", keystroke.m_data.m_button.m_button, keystroke.m_data.m_button.m_client, keystroke.m_data.m_button.m_press ? "down" : "up"));
+		if (keystroke.m_data.m_button.m_repeat) {
+			int c = keystroke.m_data.m_button.m_button;
+			int i = (c >> 3);
+			int b = 1 << (c & 7);
+			if (m_keyboardState.global_auto_repeat == AutoRepeatModeOff ||
+				(c!=113 && c!=116 && (m_keyboardState.auto_repeats[i] & b) == 0)) {
+				LOG((CLOG_DEBUG1 "  discard autorepeat"));
+				break;
+			}
+		}
+        
+        struct input_event ev[2];
+        std::memset(&ev, 0, sizeof(ev));
+        ev[0].type = EV_KEY;
+        ev[0].code = getUSBCodeFromKeyButton(keystroke.m_data.m_button.m_button);
+        ev[0].value = keystroke.m_data.m_button.m_press ? 1 : 0;
 
-    case Keystroke::kGroup:
-        if (keystroke.m_data.m_group.m_absolute) {
-            LOG((CLOG_DEBUG1 "  group %d", keystroke.m_data.m_group.m_group));
+        ev[1].type = EV_SYN;
+
+        wok = ::write(m_uinputDevice, &ev, sizeof(ev));
+
+        if (wok < 0) {
+            LOG((CLOG_DEBUG2 " failed to write key to uinput device"));
+        }
+
+		//XTestFakeKeyEvent(m_display, keystroke.m_data.m_button.m_button,
+		//					keystroke.m_data.m_button.m_press ? True : False,
+		//					CurrentTime);
+		break;
+
+	case Keystroke::kGroup:
+		if (keystroke.m_data.m_group.m_absolute) {
+			LOG((CLOG_DEBUG1 "  group %d", keystroke.m_data.m_group.m_group));
 #if HAVE_XKB_EXTENSION
             if (m_xkb != NULL) {
                 if (XkbLockGroup(m_display, XkbUseCoreKbd,
@@ -785,11 +814,11 @@ void
 XWindowsKeyState::remapKeyModifiers(KeyID id, SInt32 group,
                             synergy::KeyMap::KeyItem& item, void* vself)
 {
-    XWindowsKeyState* self = static_cast<XWindowsKeyState*>(vself);
-    item.m_required  =
-        self->mapModifiersFromX(XkbBuildCoreState(item.m_required, group));
-    item.m_sensitive =
-        self->mapModifiersFromX(XkbBuildCoreState(item.m_sensitive, group));
+	XWindowsKeyState* self = static_cast<XWindowsKeyState*>(vself);
+	item.m_required  =
+		self->mapModifiersFromX(XkbBuildCoreState(item.m_required, group));
+	item.m_sensitive =
+            self->mapModifiersFromX(XkbBuildCoreState(item.m_sensitive, group));
 }
 
 bool
@@ -864,4 +893,9 @@ XWindowsKeyState::getGroupFromState(unsigned int state) const
     }
 #endif
     return 0;
+}
+
+unsigned short XWindowsKeyState::getUSBCodeFromKeyButton(KeyButton button)
+{
+	return button - 8;
 }
