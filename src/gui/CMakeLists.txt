@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.4)
+cmake_minimum_required (VERSION 2.8)
 
 find_package (Qt5 COMPONENTS Widgets Network)
 set (CMAKE_AUTOMOC ON)
