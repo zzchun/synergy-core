@@ -52,7 +52,6 @@
 #    include "arch/win32/ArchInternetWindows.h"
 #elif SYSAPI_UNIX
 #    include "arch/unix/ArchConsoleUnix.h"
-#    include "arch/unix/ArchDaemonUnix.h"
 #    include "arch/unix/ArchFileUnix.h"
 #    include "arch/unix/ArchLogUnix.h"
 #    if HAVE_PTHREAD
