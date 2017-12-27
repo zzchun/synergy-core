@@ -32,9 +32,9 @@
 #define SPI_GETSCREENSAVERRUNNING 114
 #endif
 
-static const TCHAR* g_isSecureNT = "ScreenSaverIsSecure";
-static const TCHAR* g_isSecure9x = "ScreenSaveUsePassword";
-static const TCHAR* const g_pathScreenSaverIsSecure[] = {
+static const char* g_isSecureNT = "ScreenSaverIsSecure";
+static const char* g_isSecure9x = "ScreenSaveUsePassword";
+static const char* const g_pathScreenSaverIsSecure[] = {
     "Control Panel",
     "Desktop",
     NULL
@@ -160,7 +160,7 @@ MSWindowsScreenSaver::deactivate()
     bool killed = false;
 
     // NT runs screen saver in another desktop
-    HDESK desktop = OpenDesktop("Screen-saver", 0, FALSE,
+    HDESK desktop = OpenDesktop(L"Screen-saver", 0, FALSE,
                             DESKTOP_READOBJECTS | DESKTOP_WRITEOBJECTS);
     if (desktop != NULL) {
         EnumDesktopWindows(desktop,
@@ -172,10 +172,10 @@ MSWindowsScreenSaver::deactivate()
     // if above failed or wasn't tried, try the windows 95 way
     if (!killed) {
         // find screen saver window and close it
-        HWND hwnd = FindWindow("WindowsScreenSaverClass", NULL);
+        HWND hwnd = FindWindow(L"WindowsScreenSaverClass", NULL);
         if (hwnd == NULL) {
             // win2k may use a different class
-            hwnd = FindWindow("Default Screen Saver", NULL);
+            hwnd = FindWindow(L"Default Screen Saver", NULL);
         }
         if (hwnd != NULL) {
             PostMessage(hwnd, WM_CLOSE, 0, 0);

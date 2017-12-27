@@ -17,9 +17,9 @@
  */
 
 #include "arch/win32/ArchMiscWindows.h"
-#include "arch/win32/ArchDaemonWindows.h"
 #include "base/Log.h"
 #include "common/Version.h"
+#include "base/Unicode.h"
 
 #include <Wtsapi32.h>
 #pragma warning(disable: 4099)
@@ -80,56 +80,32 @@ ArchMiscWindows::getIcons(HICON& largeIcon, HICON& smallIcon)
     smallIcon = s_smallIcon;
 }
 
-int
-ArchMiscWindows::runDaemon(RunFunc runFunc)
-{
-    return ArchDaemonWindows::runDaemon(runFunc);
-}
-
-void
-ArchMiscWindows::daemonRunning(bool running)
-{
-    ArchDaemonWindows::daemonRunning(running);
-}
-
-void
-ArchMiscWindows::daemonFailed(int result)
-{
-    ArchDaemonWindows::daemonFailed(result);
-}
-
-UINT
-ArchMiscWindows::getDaemonQuitMessage()
-{
-    return ArchDaemonWindows::getDaemonQuitMessage();
-}
-
 HKEY
-ArchMiscWindows::openKey(HKEY key, const TCHAR* keyName)
+ArchMiscWindows::openKey(HKEY key, const char* keyName)
 {
     return openKey(key, keyName, false);
 }
 
 HKEY
-ArchMiscWindows::openKey(HKEY key, const TCHAR* const* keyNames)
+ArchMiscWindows::openKey(HKEY key, const char* const* keyNames)
 {
     return openKey(key, keyNames, false);
 }
 
 HKEY
-ArchMiscWindows::addKey(HKEY key, const TCHAR* keyName)
+ArchMiscWindows::addKey(HKEY key, const char* keyName)
 {
     return openKey(key, keyName, true);
 }
 
 HKEY
-ArchMiscWindows::addKey(HKEY key, const TCHAR* const* keyNames)
+ArchMiscWindows::addKey(HKEY key, const char* const* keyNames)
 {
     return openKey(key, keyNames, true);
 }
 
 HKEY
-ArchMiscWindows::openKey(HKEY key, const TCHAR* keyName, bool create)
+ArchMiscWindows::openKey(HKEY key, const char* keyName, bool create)
 {
     // ignore if parent is NULL
     if (key == NULL) {
@@ -138,11 +114,11 @@ ArchMiscWindows::openKey(HKEY key, const TCHAR* keyName, bool create)
 
     // open next key
     HKEY newKey;
-    LONG result = RegOpenKeyEx(key, keyName, 0,
+    LONG result = RegOpenKeyExA(key, keyName, 0,
                                 KEY_WRITE | KEY_QUERY_VALUE, &newKey);
     if (result != ERROR_SUCCESS && create) {
         DWORD disp;
-        result = RegCreateKeyEx(key, keyName, 0, TEXT(""),
+        result = RegCreateKeyExA(key, keyName, 0, "",
                                 0, KEY_WRITE | KEY_QUERY_VALUE,
                                 NULL, &newKey, &disp);
     }
@@ -157,7 +133,7 @@ ArchMiscWindows::openKey(HKEY key, const TCHAR* keyName, bool create)
 }
 
 HKEY
-ArchMiscWindows::openKey(HKEY key, const TCHAR* const* keyNames, bool create)
+ArchMiscWindows::openKey(HKEY key, const char* const* keyNames, bool create)
 {
     for (size_t i = 0; key != NULL && keyNames[i] != NULL; ++i) {
         // open next key
@@ -175,37 +151,37 @@ ArchMiscWindows::closeKey(HKEY key)
 }
 
 void
-ArchMiscWindows::deleteKey(HKEY key, const TCHAR* name)
+ArchMiscWindows::deleteKey(HKEY key, const char* const name)
 {
     assert(key  != NULL);
     assert(name != NULL);
     if (key==NULL || name==NULL) return;
-    RegDeleteKey(key, name);
+	RegDeleteKey(key, Unicode::widen(name).data());
 }
 
 void
-ArchMiscWindows::deleteValue(HKEY key, const TCHAR* name)
+ArchMiscWindows::deleteValue(HKEY key, const char* const name)
 {
     assert(key  != NULL);
     assert(name != NULL);
     if (key==NULL || name==NULL) return;
-    RegDeleteValue(key, name);
+	RegDeleteValue(key, Unicode::widen(name).data());
 }
 
 bool
-ArchMiscWindows::hasValue(HKEY key, const TCHAR* name)
+ArchMiscWindows::hasValue(HKEY key, const char* name)
 {
     DWORD type;
-    LONG result = RegQueryValueEx(key, name, 0, &type, NULL, NULL);
+    LONG result = RegQueryValueEx(key, Unicode::widen(name).data(), 0, &type, NULL, NULL);
     return (result == ERROR_SUCCESS &&
             (type == REG_DWORD || type == REG_SZ));
 }
 
 ArchMiscWindows::EValueType
-ArchMiscWindows::typeOfValue(HKEY key, const TCHAR* name)
+ArchMiscWindows::typeOfValue(HKEY key, const char* name)
 {
     DWORD type;
-    LONG result = RegQueryValueEx(key, name, 0, &type, NULL, NULL);
+    LONG result = RegQueryValueEx(key, Unicode::widen(name).data(), 0, &type, NULL, NULL);
     if (result != ERROR_SUCCESS) {
         return kNO_VALUE;
     }
@@ -226,34 +202,34 @@ ArchMiscWindows::typeOfValue(HKEY key, const TCHAR* name)
 
 void
 ArchMiscWindows::setValue(HKEY key,
-                const TCHAR* name, const std::string& value)
+                const char* name, const std::string& value)
 {
     assert(key != NULL);
     if (key == NULL) {
         // TODO: throw exception
         return;
     }
-    RegSetValueEx(key, name, 0, REG_SZ,
+    RegSetValueEx(key, Unicode::widen(name).data(), 0, REG_SZ,
                                 reinterpret_cast<const BYTE*>(value.c_str()),
                                 (DWORD)value.size() + 1);
 }
 
 void
-ArchMiscWindows::setValue(HKEY key, const TCHAR* name, DWORD value)
+ArchMiscWindows::setValue(HKEY key, const char* name, DWORD value)
 {
     assert(key != NULL);
     if (key == NULL) {
         // TODO: throw exception
         return;
     }
-    RegSetValueEx(key, name, 0, REG_DWORD,
+    RegSetValueEx(key, Unicode::widen (name).data(), 0, REG_DWORD,
                                 reinterpret_cast<CONST BYTE*>(&value),
                                 sizeof(DWORD));
 }
 
 void
 ArchMiscWindows::setValueBinary(HKEY key,
-                const TCHAR* name, const std::string& value)
+                const char* name, const std::string& value)
 {
     assert(key  != NULL);
     assert(name != NULL);
@@ -261,18 +237,18 @@ ArchMiscWindows::setValueBinary(HKEY key,
         // TODO: throw exception
         return;
     }
-    RegSetValueEx(key, name, 0, REG_BINARY,
+    RegSetValueEx(key, Unicode::widen(name).data(), 0, REG_BINARY,
                                 reinterpret_cast<const BYTE*>(value.data()),
                                 (DWORD)value.size());
 }
 
 std::string
-ArchMiscWindows::readBinaryOrString(HKEY key, const TCHAR* name, DWORD type)
+ArchMiscWindows::readBinaryOrString(HKEY key, const char* name, DWORD type)
 {
     // get the size of the string
     DWORD actualType;
     DWORD size = 0;
-    LONG result = RegQueryValueEx(key, name, 0, &actualType, NULL, &size);
+    LONG result = RegQueryValueEx(key, Unicode::widen(name).data(), 0, &actualType, NULL, &size);
     if (result != ERROR_SUCCESS || actualType != type) {
         return std::string();
     }
@@ -286,7 +262,7 @@ ArchMiscWindows::readBinaryOrString(HKEY key, const TCHAR* name, DWORD type)
     char* buffer = new char[size];
 
     // read it
-    result = RegQueryValueEx(key, name, 0, &actualType,
+    result = RegQueryValueEx(key, Unicode::widen(name).data(), 0, &actualType,
                                 reinterpret_cast<BYTE*>(buffer), &size);
     if (result != ERROR_SUCCESS || actualType != type) {
         delete[] buffer;
@@ -304,24 +280,24 @@ ArchMiscWindows::readBinaryOrString(HKEY key, const TCHAR* name, DWORD type)
 }
 
 std::string
-ArchMiscWindows::readValueString(HKEY key, const TCHAR* name)
+ArchMiscWindows::readValueString(HKEY key, const char* name)
 {
     return readBinaryOrString(key, name, REG_SZ);
 }
 
 std::string
-ArchMiscWindows::readValueBinary(HKEY key, const TCHAR* name)
+ArchMiscWindows::readValueBinary(HKEY key, const char* name)
 {
     return readBinaryOrString(key, name, REG_BINARY);
 }
 
 DWORD
-ArchMiscWindows::readValueInt(HKEY key, const TCHAR* name)
+ArchMiscWindows::readValueInt(HKEY key, const char* name)
 {
     DWORD type;
     DWORD value;
     DWORD size = sizeof(value);
-    LONG result = RegQueryValueEx(key, name, 0, &type,
+    LONG result = RegQueryValueEx(key, Unicode::widen(name).data(), 0, &type,
                                 reinterpret_cast<BYTE*>(&value), &size);
     if (result != ERROR_SUCCESS || type != REG_DWORD) {
         return 0;
@@ -372,7 +348,7 @@ ArchMiscWindows::setThreadExecutionState(DWORD busyModes)
 {
     // look up function dynamically so we work on older systems
     if (s_stes == NULL) {
-        HINSTANCE kernel = LoadLibrary("kernel32.dll");
+        HINSTANCE kernel = LoadLibrary(L"kernel32.dll");
         if (kernel != NULL) {
             s_stes = reinterpret_cast<STES_t>(GetProcAddress(kernel,
                             "SetThreadExecutionState"));
@@ -412,7 +388,7 @@ ArchMiscWindows::wakeupDisplay()
     // ES_CONTINUOUS, which we don't want.
 
     if (s_stes == NULL) {
-        HINSTANCE kernel = LoadLibrary("kernel32.dll");
+        HINSTANCE kernel = LoadLibrary(L"kernel32.dll");
         if (kernel != NULL) {
             s_stes = reinterpret_cast<STES_t>(GetProcAddress(kernel,
                             "SetThreadExecutionState"));
@@ -449,7 +425,7 @@ ArchMiscWindows::getParentProcessName(String &name)
         return false;
     }
 
-    name = parentEntry.szExeFile;
+	name = Unicode::narrow(parentEntry.szExeFile);
     return true;
 }
 

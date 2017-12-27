@@ -22,6 +22,7 @@
 #include "arch/Arch.h"
 #include "arch/XArch.h"
 #include "core/win32/AppUtilWindows.h"
+#include "base/Unicode.h"
 
 #include <string.h>
 #include <shellapi.h>
@@ -253,7 +254,7 @@ ArchTaskBarWindows::modifyIconNoLock(
                 const_cast<IArchTaskBarReceiver::Icon>(receiver->getIcon()));
 
     // get tool tip
-    std::string toolTip = receiver->getToolTip();
+	auto toolTip = Unicode::widen(receiver->getToolTip());
 
     // done querying
     receiver->unlock();
@@ -270,7 +271,7 @@ ArchTaskBarWindows::modifyIconNoLock(
         data.uFlags |= NIF_ICON;
     }
     if (!toolTip.empty()) {
-        strncpy(data.szTip, toolTip.c_str(), sizeof(data.szTip));
+		wcsncpy (data.szTip, toolTip.c_str(), sizeof(data.szTip));
         data.szTip[sizeof(data.szTip) - 1] = '\0';
         data.uFlags                       |= NIF_TIP;
     }

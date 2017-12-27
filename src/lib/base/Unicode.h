@@ -115,6 +115,14 @@ public:
 
     //@}
 
+#ifdef _WIN32
+	static std::wstring widen(char const*);
+	static std::wstring widen(std::string const&);
+
+	static std::string narrow(wchar_t const*);
+	static std::string narrow(std::wstring const&);
+#endif
+
 private:
     // convert UTF8 to wchar_t string (using whatever encoding is native
     // to the platform).  caller must delete[] the returned string.  the

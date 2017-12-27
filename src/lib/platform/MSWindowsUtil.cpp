@@ -19,6 +19,7 @@
 #include "platform/MSWindowsUtil.h"
 
 #include "base/String.h"
+#include "base/Unicode.h"
 
 #include <stdio.h>
 
@@ -29,14 +30,14 @@
 String
 MSWindowsUtil::getString(HINSTANCE instance, DWORD id)
 {
-    char* msg = NULL;
-    int n = LoadString(instance, id, reinterpret_cast<LPSTR>(&msg), 0);
+    LPWSTR msg = NULL;
+    int n = LoadString(instance, id, reinterpret_cast<LPWSTR>(&msg), 0);
 
     if (n <= 0) {
         return String();
     }
 
-    return String (msg, n);
+	return Unicode::narrow(msg);
 }
 
 String

@@ -40,10 +40,7 @@ MSWindowsEventQueueBuffer::MSWindowsEventQueueBuffer(IEventQueue* events) :
     m_thread     = GetCurrentThreadId();
 
     // create a message type for custom events
-    m_userEvent  = RegisterWindowMessage("SYNERGY_USER_EVENT");
-
-    // get message type for daemon quit
-    m_daemonQuit = ArchMiscWindows::getDaemonQuitMessage();
+    m_userEvent  = RegisterWindowMessage(L"SYNERGY_USER_EVENT");
 
     // make sure this thread has a message queue
     MSG dummy;
@@ -100,10 +97,6 @@ MSWindowsEventQueueBuffer::getEvent(Event& event, UInt32& dataID)
         return kNone;
     }
     else if (result == 0) {
-        event = Event(Event::kQuit);
-        return kSystem;
-    }
-    else if (m_daemonQuit != 0 && m_event.message == m_daemonQuit) {
         event = Event(Event::kQuit);
         return kSystem;
     }

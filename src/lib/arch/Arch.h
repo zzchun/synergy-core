@@ -39,7 +39,6 @@
 
 #if SYSAPI_WIN32
 #    include "arch/win32/ArchConsoleWindows.h"
-#    include "arch/win32/ArchDaemonWindows.h"
 #    include "arch/win32/ArchFileWindows.h"
 #    include "arch/win32/ArchLogWindows.h"
 #    include "arch/win32/ArchMiscWindows.h"
@@ -85,7 +84,6 @@ exactly one of these objects before attempting to call any method,
 typically at the beginning of \c main().
 */
 class Arch : public ARCH_CONSOLE,
-                public ARCH_DAEMON,
                 public ARCH_FILE,
                 public ARCH_LOG,
                 public ARCH_MULTITHREAD,

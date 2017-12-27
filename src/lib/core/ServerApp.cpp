@@ -721,12 +721,7 @@ ServerApp::mainLoop()
     m_events->adoptHandler(m_events->forServerApp().resetServer(),
         m_events->getSystemTarget(),
         new TMethodEventJob<ServerApp>(this, &ServerApp::resetServer));
-
-    // run event loop.  if startServer() failed we're supposed to retry
-    // later.  the timer installed by startServer() will take care of
-    // that.
-    DAEMON_RUNNING(true);
-    
+ 
 #if defined(MAC_OS_X_VERSION_10_7)
     
     Thread thread(
@@ -744,8 +739,6 @@ ServerApp::mainLoop()
     m_events->loop();
 #endif
     
-    DAEMON_RUNNING(false);
-
     // close down
     LOG((CLOG_DEBUG1 "stopping server"));
     m_events->removeHandler(m_events->forServerApp().forceReconnect(),
@@ -796,14 +789,8 @@ int
 ServerApp::standardStartup(int argc, char** argv)
 {
     initApp(argc, argv);
-
-    // daemonize if requested
-    if (args().m_daemon) {
-        return ARCH->daemonize(daemonName(), daemonMainLoopStatic);
-    }
-    
-        return mainLoop();
-    
+ 
+    return mainLoop();    
 }
 
 int 

@@ -63,79 +63,55 @@ public:
     */
     static void            getIcons(HICON& largeIcon, HICON& smallIcon);
 
-    //! Run the daemon
-    /*!
-    Delegates to ArchDaemonWindows.
-    */
-    static int            runDaemon(RunFunc runFunc);
-
-    //! Indicate daemon is in main loop
-    /*!
-    Delegates to ArchDaemonWindows.
-    */
-    static void            daemonRunning(bool running);
-
-    //! Indicate failure of running daemon
-    /*!
-    Delegates to ArchDaemonWindows.
-    */
-    static void            daemonFailed(int result);
-
-    //! Get daemon quit message
-    /*!
-    Delegates to ArchDaemonWindows.
-    */
-    static UINT            getDaemonQuitMessage();
+    //! Open and return a registry key, closing the parent key
+    static HKEY            openKey(HKEY parent, const char* child);
 
     //! Open and return a registry key, closing the parent key
-    static HKEY            openKey(HKEY parent, const TCHAR* child);
-
-    //! Open and return a registry key, closing the parent key
-    static HKEY            openKey(HKEY parent, const TCHAR* const* keyPath);
+    static HKEY            openKey(HKEY parent, const char* const* keyPath);
 
     //! Open/create and return a registry key, closing the parent key
-    static HKEY            addKey(HKEY parent, const TCHAR* child);
+    static HKEY            addKey(HKEY parent, const char* child);
 
     //! Open/create and return a registry key, closing the parent key
-    static HKEY            addKey(HKEY parent, const TCHAR* const* keyPath);
+    static HKEY            addKey(HKEY parent, const char* const* keyPath);
 
     //! Close a key
     static void            closeKey(HKEY);
 
     //! Delete a key (which should have no subkeys)
-    static void            deleteKey(HKEY parent, const TCHAR* name);
+    static void            deleteKey(HKEY parent, const char* name);
 
     //! Delete a value
-    static void            deleteValue(HKEY parent, const TCHAR* name);
+    static void            deleteValue(HKEY parent, const char* name);
 
     //! Test if a value exists
-    static bool            hasValue(HKEY key, const TCHAR* name);
+    static bool            hasValue(HKEY key, const char* name);
 
     //! Get type of value
-    static EValueType    typeOfValue(HKEY key, const TCHAR* name);
+    static EValueType    typeOfValue(HKEY key, const char* name);
 
     //! Set a string value in the registry
-    static void            setValue(HKEY key, const TCHAR* name,
+    static void            setValue(HKEY key, const char* name,
                             const std::string& value);
 
     //! Set a DWORD value in the registry
-    static void            setValue(HKEY key, const TCHAR* name, DWORD value);
+    static void            setValue(HKEY key, const char* name, DWORD value);
 
     //! Set a BINARY value in the registry
     /*!
     Sets the \p name value of \p key to \p value.data().
     */
-    static void            setValueBinary(HKEY key, const TCHAR* name,
+    static void            setValueBinary(HKEY key, const char* name,
                             const std::string& value);
 
     //! Read a string value from the registry
-    static std::string    readValueString(HKEY, const TCHAR* name);
+    static std::string    readValueString(HKEY, const char* name);
 
     //! Read a DWORD value from the registry
-    static DWORD        readValueInt(HKEY, const TCHAR* name);
+    static DWORD        readValueInt(HKEY, const char* name);
 
     //! Read a BINARY value from the registry
-    static std::string    readValueBinary(HKEY, const TCHAR* name);
+    static std::string    readValueBinary(HKEY, const char* name);
 
     //! Add a dialog
     static void            addDialog(HWND);
@@ -175,14 +151,14 @@ public:
 
 private:
     //! Open and return a registry key, closing the parent key
-    static HKEY            openKey(HKEY parent, const TCHAR* child, bool create);
+    static HKEY            openKey(HKEY parent, const char* child, bool create);
 
     //! Open and return a registry key, closing the parent key
-    static HKEY            openKey(HKEY parent, const TCHAR* const* keyPath,
+    static HKEY            openKey(HKEY parent, const char* const* keyPath,
                             bool create);
 
     //! Read a string value from the registry
-    static std::string    readBinaryOrString(HKEY, const TCHAR* name, DWORD type);
+    static std::string    readBinaryOrString(HKEY, const char* name, DWORD type);
 
     //! Set thread busy state
     static void            setThreadExecutionState(DWORD);

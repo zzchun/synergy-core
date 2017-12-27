@@ -19,6 +19,7 @@
 #include "arch/win32/XArchWindows.h"
 #include "arch/Arch.h"
 #include "common/Version.h"
+#include "base/Unicode.h"
 
 #include <sstream>
 #include <Wininet.h>
@@ -64,14 +65,15 @@ ArchInternetWindows::get(const String& url)
 String
 ArchInternetWindows::urlEncode(const String& url)
 {
-    TCHAR buffer[1024];
-    DWORD bufferSize = sizeof(buffer);
+    WCHAR buffer[1024];
+    DWORD bufferSize = 1024;
 
-    if (UrlEscape(url.c_str(), buffer, &bufferSize, URL_ESCAPE_UNSAFE) != S_OK) {
+    if (UrlEscape(Unicode::widen(url).data(), buffer, &bufferSize, 
+				  URL_ESCAPE_UNSAFE) != S_OK) {
         throw XArch(new XArchEvalWindows());
     }
 
-    String result(buffer);
+	auto result = Unicode::narrow(buffer);
 
     // the win32 url encoding funcitons are pretty useless (to us) and only
     // escape "unsafe" chars, but not + or =, so we need to replace these
@@ -125,7 +127,8 @@ WinINetRequest::send()
     openRequest();
     
     String headers("Content-Type: text/html");
-    if (!HttpSendRequest(m_request, headers.c_str(), (DWORD)headers.length(), NULL, NULL)) {
+    if (!HttpSendRequest(m_request, Unicode::widen(headers).data(), 
+						(DWORD)headers.length(), NULL, NULL)) {
         throw XArch(new XArchEvalWindows());
     }
     
@@ -150,7 +153,7 @@ WinINetRequest::openSession()
     userAgent << kVersion;
 
     m_session = InternetOpen(
-        userAgent.str().c_str(),
+        Unicode::widen(userAgent.str()).c_str(),
         INTERNET_OPEN_TYPE_PRECONFIG,
         NULL,
         NULL,
@@ -166,7 +169,7 @@ WinINetRequest::connect()
 {
     m_connect = InternetConnect(
         m_session,
-        m_url.m_host.c_str(),
+        Unicode::widen(m_url.m_host).c_str(),
         m_url.m_port,
         NULL,
         NULL,
@@ -184,8 +187,8 @@ WinINetRequest::openRequest()
 {
     m_request = HttpOpenRequest(
         m_connect,
-        "GET",
-        m_url.m_path.c_str(),
+        L"GET",
+        Unicode::widen (m_url.m_path).c_str(),
         HTTP_VERSION,
         NULL,
         NULL,

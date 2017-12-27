@@ -17,6 +17,7 @@
  */
 
 #include "platform/MSWindowsDebugOutputter.h"
+#include "base/Unicode.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -48,7 +49,7 @@ MSWindowsDebugOutputter::show(bool showIfEmpty)
 bool
 MSWindowsDebugOutputter::write(ELevel level, const char* msg)
 {
-    OutputDebugString((std::string(msg) + "\n").c_str());
+	OutputDebugString(Unicode::widen (std::string(msg) + "\n").c_str());
     return true;
 }
 

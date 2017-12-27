@@ -19,6 +19,7 @@
 #include "arch/win32/ArchSystemWindows.h"
 #include "arch/win32/ArchMiscWindows.h"
 #include "arch/win32/XArchWindows.h"
+#include "base/Unicode.h"
 
 #include "tchar.h"
 #include <string>
@@ -27,8 +28,8 @@
 #include <psapi.h>
 
 static const char* s_settingsKeyNames[] = {
-    _T("SOFTWARE"),
-    _T("Synergy"),
+    "SOFTWARE",
+    "Synergy",
     NULL
 };
 
@@ -50,11 +51,11 @@ std::string
 ArchSystemWindows::getOSName() const
 {
     std::string osName ("Microsoft Windows <unknown>");
-    static const TCHAR* const windowsVersionKeyNames[] = {
-        _T("SOFTWARE"),
-        _T("Microsoft"),
-        _T("Windows NT"),
-        _T("CurrentVersion"),
+    static const char* const windowsVersionKeyNames[] = {
+        "SOFTWARE",
+        "Microsoft",
+        "Windows NT",
+        "CurrentVersion",
         NULL
     };
 
@@ -151,10 +152,10 @@ ArchSystemWindows::getLibsUsed(void) const
 
     if (EnumProcessModules(hProcess, hMods, sizeof(hMods), &cbNeeded)) {
         for (i = 0; i < (cbNeeded / sizeof(HMODULE)); i++) {
-            TCHAR szModName[MAX_PATH];
+            wchar_t szModName[MAX_PATH];
             if (GetModuleFileNameEx(hProcess, hMods[i], szModName, sizeof(szModName) / sizeof(TCHAR))) {
                 sprintf(hex, "(0x%08llX)", reinterpret_cast<long long>(hMods[i]));
-                msg += szModName;
+				msg += Unicode::narrow(szModName);
                 msg.append(hex);
                 msg.append("\n");
             }

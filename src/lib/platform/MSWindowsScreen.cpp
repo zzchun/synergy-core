@@ -41,6 +41,7 @@
 #include "base/IEventQueue.h"
 #include "base/TMethodEventJob.h"
 #include "base/TMethodJob.h"
+#include "base/Unicode.h"
 
 #include <string.h>
 #include <Shlobj.h>
@@ -151,9 +152,9 @@ MSWindowsScreen::MSWindowsScreen(
         LOG((CLOG_DEBUG "window is 0x%08x", m_window));
         
         // SHGetFolderPath is deprecated in vista, but use it for xp support.
-        char desktopPath[MAX_PATH];
+        wchar_t desktopPath[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_DESKTOP, NULL, 0, desktopPath))) {
-            m_desktopPath = String(desktopPath);
+            m_desktopPath = Unicode::narrow(desktopPath);
             LOG((CLOG_DEBUG "using desktop for drop target: %s", m_desktopPath.c_str()));
         }
         else {
@@ -848,7 +849,7 @@ MSWindowsScreen::createWindowClass() const
     classInfo.hCursor       = NULL;
     classInfo.hbrBackground = NULL;
     classInfo.lpszMenuName  = NULL;
-    classInfo.lpszClassName = "Synergy";
+    classInfo.lpszClassName = L"Synergy";
     classInfo.hIconSm       = NULL;
     return RegisterClassEx(&classInfo);
 }
@@ -868,7 +869,7 @@ MSWindowsScreen::createWindow(ATOM windowClass, const char* name) const
                                     WS_EX_TRANSPARENT |
                                     WS_EX_TOOLWINDOW,
                                 MAKEINTATOM(windowClass),
-                                name,
+                                Unicode::widen(name).c_str(),
                                 WS_POPUP,
                                 0, 0, 1, 1,
                                 NULL, NULL,
@@ -889,7 +890,7 @@ MSWindowsScreen::createDropWindow(ATOM windowClass, const char* name) const
         WS_EX_TRANSPARENT |
         WS_EX_ACCEPTFILES,
         MAKEINTATOM(m_class),
-        name,
+        Unicode::widen(name).c_str(),
         WS_POPUP,
         0, 0, m_dropWindowSize, m_dropWindowSize,
         NULL, NULL,

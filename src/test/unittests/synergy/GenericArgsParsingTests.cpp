@@ -106,7 +106,6 @@ TEST(GenericArgsParsingTests, parseGenericArgs_noDeamonCmd_daemonFalse)
     
     argParser.parseGenericArgs(argc, kNoDeamonCmd, i);
 
-    EXPECT_FALSE(argsBase.m_daemon);
     EXPECT_EQ(1, i);
 }
 
@@ -122,7 +121,6 @@ TEST(GenericArgsParsingTests, parseGenericArgs_deamonCmd_daemonTrue)
     
     argParser.parseGenericArgs(argc, kDeamonCmd, i);
 
-    EXPECT_EQ(true, argsBase.m_daemon);
     EXPECT_EQ(1, i);
 }
 

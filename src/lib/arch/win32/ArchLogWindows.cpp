@@ -18,6 +18,7 @@
 
 #include "arch/win32/ArchLogWindows.h"
 #include "arch/win32/ArchMiscWindows.h"
+#include "base/Unicode.h"
 
 #include <string.h>
 
@@ -39,7 +40,7 @@ void
 ArchLogWindows::openLog(const char* name)
 {
     if (m_eventLog == NULL) {
-        m_eventLog = RegisterEventSource(NULL, name);
+		m_eventLog = RegisterEventSource(NULL, Unicode::widen(name).data());
     }
 }
 

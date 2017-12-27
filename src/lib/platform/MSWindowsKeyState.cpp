@@ -617,7 +617,7 @@ void
 MSWindowsKeyState::init()
 {
 	// look up symbol that's available on winNT family but not win95
-	HMODULE userModule = GetModuleHandle("user32.dll");
+	HMODULE userModule = GetModuleHandle(L"user32.dll");
 	m_ToUnicodeEx = (ToUnicodeEx_t)GetProcAddress(userModule, "ToUnicodeEx");
 }
 
@@ -814,7 +814,7 @@ MSWindowsKeyState::fakeCtrlAltDel()
 	// current thread must be on that desktop to do the broadcast
 	// and we can't switch just any thread because some own windows
 	// or hooks.  so start a new thread to do the real work.
-	HANDLE hEvtSendSas = OpenEvent(EVENT_MODIFY_STATE, FALSE, "Global\\SendSAS");
+	HANDLE hEvtSendSas = OpenEvent(EVENT_MODIFY_STATE, FALSE, L"Global\\SendSAS");
 	if (hEvtSendSas) {
 		LOG((CLOG_DEBUG "found the SendSAS event - signaling my launcher to simulate ctrl+alt+del"));
 		SetEvent(hEvtSendSas);
@@ -832,7 +832,7 @@ void
 MSWindowsKeyState::ctrlAltDelThread(void*)
 {
 	// get the Winlogon desktop at whatever privilege we can
-	HDESK desk = OpenDesktop("Winlogon", 0, FALSE, MAXIMUM_ALLOWED);
+	HDESK desk = OpenDesktop(L"Winlogon", 0, FALSE, MAXIMUM_ALLOWED);
 	if (desk != NULL) {
 		if (SetThreadDesktop(desk)) {
 			PostMessage(HWND_BROADCAST, WM_HOTKEY, 0,

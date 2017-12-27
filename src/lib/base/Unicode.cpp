@@ -782,3 +782,70 @@ Unicode::toUTF8(String& dst, UInt32 c, bool* errors)
         assert(0 && "character out of range");
     }
 }
+
+#ifdef _WIN32
+
+std::wstring 
+Unicode::widen(char const* const str) {
+	std::wstring wstr;
+	auto const inlen = std::strlen(str);
+	auto const outlen = MultiByteToWideChar(CP_UTF8, 0,
+							str, inlen, nullptr, 0);
+	if (!outlen) {
+		return wstr;
+	}
+	wstr.resize(outlen);
+	MultiByteToWideChar(CP_UTF8, 0, str, inlen, 
+		std::addressof(wstr.front()), wstr.size());
+	return wstr;
+}
+
+std::wstring 
+Unicode::widen(std::string const& str) {
+	std::wstring wstr;
+	auto const outlen = MultiByteToWideChar(CP_UTF8, 0,
+							str.data(), str.size(), nullptr, 0);
+	if (!outlen) {
+		return wstr;
+	}
+	wstr.resize(outlen);
+	MultiByteToWideChar(CP_UTF8, 0, str.data(), str.size(),
+		std::addressof(wstr.front()), wstr.size());
+	return wstr;
+}
+
+std::string
+Unicode::narrow (wchar_t const* const wstr) {
+	std::string str;
+	auto const inlen = wcslen(wstr);
+	auto outlen = WideCharToMultiByte(CP_UTF8, 0,
+								      wstr, inlen, NULL, 0, NULL, NULL);
+	if (!outlen) {
+		return str;
+	}
+	str.resize(outlen);
+	WideCharToMultiByte(CP_UTF8, 0,
+						wstr, inlen,
+						std::addressof(str.front()), str.size(),
+						NULL, NULL);
+	return str;
+}
+
+std::string 
+Unicode::narrow (std::wstring const& wstr) {
+	std::string str;
+	auto n = WideCharToMultiByte(CP_UTF8, 0,
+								 wstr.data(), wstr.size(),
+								 NULL, 0, NULL, NULL);
+	if (!n) {
+		return str;
+	}
+	str.resize(n);
+	WideCharToMultiByte(CP_UTF8, 0,
+						wstr.data(), wstr.size(),
+						std::addressof(str.front()), str.size(), 
+						NULL, NULL);
+	return str;
+}
+
+#endif

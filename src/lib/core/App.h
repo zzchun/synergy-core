@@ -133,12 +133,6 @@ private:
     EventQueue            m_events;
 };
 
-#if WINAPI_MSWINDOWS
-#define DAEMON_RUNNING(running_) ArchMiscWindows::daemonRunning(running_)
-#else
-#define DAEMON_RUNNING(running_)
-#endif
-
 #define HELP_COMMON_INFO_1 \
     "  -d, --debug <level>      filter out log messages with priority below level.\n" \
     "                             level may be: FATAL, ERROR, WARNING, NOTE, INFO,\n" \

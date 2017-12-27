@@ -66,50 +66,10 @@ mainLoopStatic()
     return AppUtil::instance().app().mainLoop();
 }
 
-int 
-AppUtilWindows::daemonNTMainLoop(int argc, const char** argv)
-{
-    app().initApp(argc, argv);
-    debugServiceWait();
-
-    // NB: what the hell does this do?!
-    app().argsBase().m_backend = false;
-    
-    return ArchMiscWindows::runDaemon(mainLoopStatic);
-}
-
 void 
 AppUtilWindows::exitApp(int code)
 {
-    switch (m_exitMode) {
-
-        case kExitModeDaemon:
-            ArchMiscWindows::daemonFailed(code);
-            break;
-
-        default:
-            throw XExitApp(code);
-    }
-}
-
-int daemonNTMainLoopStatic(int argc, const char** argv)
-{
-    return AppUtilWindows::instance().daemonNTMainLoop(argc, argv);
-}
-
-int 
-AppUtilWindows::daemonNTStartup(int, char**)
-{
-    SystemLogger sysLogger(app().daemonName(), false);
-    m_exitMode = kExitModeDaemon;
-    return ARCH->daemonize(app().daemonName(), daemonNTMainLoopStatic);
-}
-
-static
-int
-daemonNTStartupStatic(int argc, char** argv)
-{
-    return AppUtilWindows::instance().daemonNTStartup(argc, argv);
+    throw XExitApp(code);
 }
 
 static
@@ -144,15 +104,7 @@ AppUtilWindows::run(int argc, char** argv)
     MSWindowsScreen::init(ArchMiscWindows::instanceWin32());
     Thread::getCurrentThread().setPriority(-14);
 
-    StartupFunc startup;
-    if (ArchMiscWindows::wasLaunchedAsService()) {
-        startup = &daemonNTStartupStatic;
-    } else {
-        startup = &foregroundStartupStatic;
-        app().argsBase().m_daemon = false;
-    }
-
-    return app().runInner(argc, argv, NULL, startup);
+    return app().runInner(argc, argv, NULL, &foregroundStartupStatic);
 }
 
 AppUtilWindows& 

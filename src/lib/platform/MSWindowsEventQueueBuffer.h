@@ -45,6 +45,5 @@ private:
     DWORD                m_thread;
     UINT                m_userEvent;
     MSG                    m_event;
-    UINT                m_daemonQuit;
     IEventQueue*        m_events;
 };

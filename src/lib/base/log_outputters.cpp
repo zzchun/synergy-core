@@ -19,6 +19,7 @@
 #include "base/log_outputters.h"
 #include "arch/Arch.h"
 #include "base/TMethodJob.h"
+#include "base/Unicode.h"
 
 #include <fstream>
 
@@ -319,7 +320,7 @@ MesssageBoxLogOutputter::show(bool  /*showIfEmpty*/)
 }
 
 bool
-MesssageBoxLogOutputter::write(ELevel level, const char* msg)
+MesssageBoxLogOutputter::write(ELevel level, const char* const msg)
 {
     // don't spam user with messages.
     if (level > kERROR) {
@@ -327,7 +328,8 @@ MesssageBoxLogOutputter::write(ELevel level, const char* msg)
     }
 
 #if SYSAPI_WIN32
-    MessageBox(NULL, msg, CLOG->getFilterName(level), MB_OK);
+    MessageBox(NULL, Unicode::widen(msg).data(),
+			   Unicode::widen (CLOG->getFilterName(level)).data(), MB_OK);
 #endif
 
     return true;

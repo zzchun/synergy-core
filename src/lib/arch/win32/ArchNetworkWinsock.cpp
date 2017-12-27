@@ -131,7 +131,7 @@ ArchNetworkWinsock::init()
     // try each winsock library
     for (size_t i = 0; i < sizeof(s_library) / sizeof(s_library[0]); ++i) {
         try {
-            initModule((HMODULE)::LoadLibrary(s_library[i]));
+            initModule((HMODULE)::LoadLibraryA(s_library[i]));
             m_mutex = ARCH->newMutex();
             return;
         }

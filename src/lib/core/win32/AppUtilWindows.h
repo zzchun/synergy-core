@@ -29,18 +29,13 @@
 class IEventQueue;
 
 enum AppExitMode {
-    kExitModeNormal,
-    kExitModeDaemon
+    kExitModeNormal
 };
 
 class AppUtilWindows : public AppUtil {
 public:
     AppUtilWindows(IEventQueue* events);
     virtual ~AppUtilWindows();
-
-    int daemonNTStartup(int, char**);
-    
-    int daemonNTMainLoop(int argc, const char** argv);
 
     void debugServiceWait();
 

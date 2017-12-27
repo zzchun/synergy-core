@@ -26,7 +26,6 @@ public:
     virtual ~ArgsBase();
 
 public:
-    bool                m_daemon;
     bool                m_backend;
     bool                m_restartable;
     bool                m_noHooks;

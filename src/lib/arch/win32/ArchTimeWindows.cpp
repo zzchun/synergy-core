@@ -54,7 +54,7 @@ ArchTimeWindows::ArchTimeWindows()
     }
     else {
         // load winmm.dll and get timeGetTime
-        s_mmInstance = LoadLibrary("winmm");
+        s_mmInstance = LoadLibrary(L"winmm");
         if (s_mmInstance != NULL) {
             s_tgt = (PTimeGetTime)GetProcAddress(s_mmInstance, "timeGetTime");
         }

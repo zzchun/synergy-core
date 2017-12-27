@@ -17,6 +17,7 @@
  */
 
 #include "arch/win32/ArchFileWindows.h"
+#include "base/Unicode.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -67,10 +68,11 @@ std::string
 ArchFileWindows::getUserDirectory()
 {
     // try %HOMEPATH%
-    TCHAR dir[MAX_PATH];
-    DWORD size   = sizeof(dir) / sizeof(TCHAR);
-    DWORD result = GetEnvironmentVariable(_T("HOMEPATH"), dir, size);
+    WCHAR wdir[MAX_PATH];
+    DWORD size   = sizeof(wdir) / sizeof(decltype(*wdir));
+    DWORD result = GetEnvironmentVariable(L"HOMEPATH", wdir, size);
     if (result != 0 && result <= size) {
+		auto dir = Unicode::narrow(wdir);
         // sanity check -- if dir doesn't appear to start with a
         // drive letter and isn't a UNC name then don't use it
         // FIXME -- allow UNC names
@@ -85,11 +87,11 @@ ArchFileWindows::getUserDirectory()
     // a home directory as we're likely to find.
     ITEMIDLIST* idl;
     if (SUCCEEDED(SHGetSpecialFolderLocation(NULL, CSIDL_PERSONAL, &idl))) {
-        TCHAR* path = NULL;
-        if (SHGetPathFromIDList(idl, dir)) {
-            DWORD attr = GetFileAttributes(dir);
-            if (attr != 0xffffffff && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0)
-                path = dir;
+		std::string path;
+        if (SHGetPathFromIDList(idl, wdir)) {
+            DWORD attr = GetFileAttributes(wdir);
+			if (attr != 0xffffffff && (attr & FILE_ATTRIBUTE_DIRECTORY) != 0)
+				path = Unicode::narrow(wdir);
         }
 
         IMalloc* shalloc;
@@ -98,9 +100,7 @@ ArchFileWindows::getUserDirectory()
             shalloc->Release();
         }
 
-        if (path != NULL) {
-            return path;
-        }
+        return path;
     }
 
     // use root of C drive as a default
@@ -111,9 +111,9 @@ std::string
 ArchFileWindows::getSystemDirectory()
 {
     // get windows directory
-    char dir[MAX_PATH];
-    if (GetWindowsDirectory(dir, sizeof(dir)) != 0) {
-        return dir;
+    wchar_t dir[MAX_PATH];
+    if (GetWindowsDirectory(dir, MAX_PATH) != 0) {
+		return Unicode::narrow(dir);
     }
     else {
         // can't get it.  use C:\ as a default.
@@ -124,9 +124,9 @@ ArchFileWindows::getSystemDirectory()
 std::string
 ArchFileWindows::getInstalledDirectory()
 {
-    char fileNameBuffer[MAX_PATH];
+    WCHAR fileNameBuffer[MAX_PATH];
     GetModuleFileName(NULL, fileNameBuffer, MAX_PATH);
-    std::string fileName(fileNameBuffer);
+    auto fileName = Unicode::narrow(fileNameBuffer);
     size_t lastSlash = fileName.find_last_of("\\");
     fileName = fileName.substr(0, lastSlash);
 
@@ -159,9 +159,9 @@ ArchFileWindows::getProfileDirectory()
         dir = m_profileDirectory;
     }
     else {
-        TCHAR result[MAX_PATH];
+        WCHAR result[MAX_PATH];
         if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, result))) {
-            dir = result;
+			dir = Unicode::narrow(result);
         }
         else {
             dir = getUserDirectory();

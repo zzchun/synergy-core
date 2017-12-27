@@ -452,12 +452,7 @@ ClientApp::mainLoop()
 
     // start client, etc
     appUtil().startNode();
-    
-    // run event loop.  if startClient() failed we're supposed to retry
-    // later.  the timer installed by startClient() will take care of
-    // that.
-    DAEMON_RUNNING(true);
-    
+ 
 #if defined(MAC_OS_X_VERSION_10_7)
     
     Thread thread(
@@ -474,8 +469,6 @@ ClientApp::mainLoop()
 #else
     m_events->loop();
 #endif
-    
-    DAEMON_RUNNING(false);
 
     // close down
     LOG((CLOG_DEBUG1 "stopping client"));
@@ -498,13 +491,7 @@ ClientApp::standardStartup(int argc, char** argv)
 {
     initApp(argc, argv);
 
-    // daemonize if requested
-    if (args().m_daemon) {
-        return ARCH->daemonize(daemonName(), &daemonMainLoopStatic);
-    }
-    
-        return mainLoop();
-    
+    return mainLoop();    
 }
 
 int

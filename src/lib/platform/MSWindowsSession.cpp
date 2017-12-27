@@ -20,6 +20,7 @@
 #include "arch/win32/XArchWindows.h"
 #include "core/XSynergy.h"
 #include "base/Log.h"
+#include "base/Unicode.h"
 
 #include <Wtsapi32.h>
 
@@ -33,8 +34,9 @@ MSWindowsSession::~MSWindowsSession()
 }
 
 bool
-MSWindowsSession::isProcessInSession(const char* name, PHANDLE process = NULL)
+MSWindowsSession::isProcessInSession(const char* const name, PHANDLE process = NULL)
 {
+	auto wideName = Unicode::widen(name);
     // first we need to take a snapshot of the running processes
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE) {
@@ -79,9 +81,9 @@ MSWindowsSession::isProcessInSession(const char* name, PHANDLE process = NULL)
                 if (processSessionId == m_activeSessionId) {
 
                     // store the names so we can record them for debug
-                    nameList.push_back(entry.szExeFile);
+					nameList.push_back(Unicode::narrow(entry.szExeFile));
 
-                    if (_stricmp(entry.szExeFile, name) == 0) {
+                    if (_wcsicmp(entry.szExeFile, wideName.c_str()) == 0) {
                         pid = entry.th32ProcessID;
                     }
                 }
@@ -172,18 +174,18 @@ MSWindowsSession::nextProcessEntry(HANDLE snapshot, LPPROCESSENTRY32 entry)
     return gotEntry;
 }
 
-String
+std::string
 MSWindowsSession::getActiveDesktopName()
 {
-    String result;
+    std::string result;
     try {
         HDESK hd = OpenInputDesktop(0, TRUE, GENERIC_READ);
         if (hd != NULL) {
             DWORD size;
             GetUserObjectInformation(hd, UOI_NAME, NULL, 0, &size);
-            TCHAR* name = (TCHAR*)alloca(size + sizeof(TCHAR));
+            auto name = static_cast<WCHAR*>(alloca(size + sizeof(WCHAR)));
             GetUserObjectInformation(hd, UOI_NAME, name, size, &size);
-            result = name;
+			result = Unicode::narrow(name);
             CloseDesktop(hd);
         }
     }

@@ -31,6 +31,7 @@
 #include "base/TMethodEventJob.h"
 #include "base/TMethodJob.h"
 #include "base/IEventQueue.h"
+#include "base/Unicode.h"
 
 #include <malloc.h>
 
@@ -389,7 +390,7 @@ MSWindowsDesks::createDeskWindowClass(bool isPrimary) const
     classInfo.hCursor       = m_cursor;
     classInfo.hbrBackground = NULL;
     classInfo.lpszMenuName  = NULL;
-    classInfo.lpszClassName = "SynergyDesk";
+    classInfo.lpszClassName = L"SynergyDesk";
     classInfo.hIconSm       = NULL;
     return RegisterClassEx(&classInfo);
 }
@@ -409,7 +410,7 @@ MSWindowsDesks::createWindow(ATOM windowClass, const char* name) const
     HWND window = CreateWindowEx(WS_EX_TRANSPARENT |
                                     WS_EX_TOOLWINDOW,
                                 MAKEINTATOM(windowClass),
-                                name,
+                                Unicode::widen (name).data(),
                                 WS_POPUP,
                                 0, 0, 1, 1,
                                 NULL, NULL,
@@ -937,10 +938,9 @@ MSWindowsDesks::getDesktopName(HDESK desk)
     else {
         DWORD size;
         GetUserObjectInformation(desk, UOI_NAME, NULL, 0, &size);
-        TCHAR* name = (TCHAR*)alloca(size + sizeof(TCHAR));
+		auto name = static_cast<wchar_t*>(alloca(size + sizeof(wchar_t)));
         GetUserObjectInformation(desk, UOI_NAME, name, size, &size);
-        String result(name);
-        return result;
+        return Unicode::narrow (name);
     }
 }
 
